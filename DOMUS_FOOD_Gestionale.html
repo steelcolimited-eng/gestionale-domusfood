@@ -1,0 +1,1585 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Domus Food — Gestionale</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --acciaio:#1d2a32; --acciaio-2:#2a3b45; --pomodoro:#b4232a; --pomodoro-chiaro:#e8484f;
+  --basilico:#3f6b45; --carta:#f6f4ef; --linea:#dcd8ce; --testo:#22282b; --tenue:#6f7a80;
+  --oro:#c08a2e; --bianco:#fff;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:Archivo,system-ui,sans-serif;background:var(--carta);color:var(--testo);font-size:14px}
+button,input,select,textarea{font-family:inherit;font-size:14px}
+.num{font-variant-numeric:tabular-nums}
+
+/* ---- intestazione ---- */
+header{background:var(--acciaio);color:#fff;padding:10px 18px;display:flex;align-items:center;gap:18px;position:sticky;top:0;z-index:40}
+.marchio{font-weight:700;letter-spacing:.02em;font-size:16px;line-height:1.1}
+.marchio small{display:block;font-weight:400;font-size:11px;color:#9fb0b8;letter-spacing:.06em}
+.stato{margin-left:auto;display:flex;align-items:center;gap:10px;font-size:12px;color:#c6d3d9}
+.pallino{width:9px;height:9px;border-radius:50%;background:#6f7a80}
+.pallino.on{background:#49b265;box-shadow:0 0 0 3px rgba(73,178,101,.2)}
+.pallino.off{background:var(--pomodoro-chiaro)}
+header button{background:#ffffff1a;color:#fff;border:1px solid #ffffff33;border-radius:6px;padding:6px 11px;cursor:pointer}
+header button:hover{background:#ffffff2e}
+
+nav{background:var(--acciaio-2);display:flex;gap:2px;padding:0 10px;overflow-x:auto;position:sticky;top:53px;z-index:39}
+nav button{background:none;border:0;color:#b9c8cf;padding:11px 14px;cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap}
+nav button:hover{color:#fff}
+nav button.attivo{color:#fff;border-bottom-color:var(--pomodoro-chiaro);font-weight:600}
+
+main{padding:20px;max-width:1500px;margin:0 auto}
+h2{font-size:19px;margin:0 0 4px}
+.sottotitolo{color:var(--tenue);margin:0 0 18px;max-width:70ch}
+section{display:none}
+section.attiva{display:block}
+
+/* ---- blocchi ---- */
+.riquadro{background:#fff;border:1px solid var(--linea);border-radius:10px;padding:16px;margin-bottom:16px}
+.riquadro h3{margin:0 0 12px;font-size:15px;display:flex;align-items:center;gap:8px}
+.griglia{display:grid;gap:14px}
+.g4{grid-template-columns:repeat(4,1fr)}
+.g3{grid-template-columns:repeat(3,1fr)}
+.g2{grid-template-columns:repeat(2,1fr)}
+@media(max-width:1000px){.g4,.g3,.g2{grid-template-columns:1fr 1fr}}
+@media(max-width:620px){.g4,.g3,.g2{grid-template-columns:1fr}}
+
+.kpi{background:#fff;border:1px solid var(--linea);border-radius:10px;padding:14px 16px}
+.kpi .etichetta{color:var(--tenue);font-size:12px;margin-bottom:6px}
+.kpi .valore{font-size:26px;font-weight:700;letter-spacing:-.02em}
+.kpi .nota{font-size:12px;color:var(--tenue);margin-top:4px}
+.kpi.rosso{border-left:4px solid var(--pomodoro)}
+.kpi.verde{border-left:4px solid var(--basilico)}
+.kpi.oro{border-left:4px solid var(--oro)}
+.kpi.acciaio{border-left:4px solid var(--acciaio)}
+
+/* ---- tabelle ---- */
+.tabella-wrap{overflow:auto;border:1px solid var(--linea);border-radius:8px;background:#fff}
+table{border-collapse:collapse;width:100%}
+th{background:#eeebe4;text-align:left;padding:9px 10px;font-size:11.5px;font-weight:600;color:#4a545a;position:sticky;top:0;white-space:nowrap;border-bottom:1px solid var(--linea)}
+td{padding:8px 10px;border-bottom:1px solid #edeae3;white-space:nowrap}
+tbody tr:hover{background:#faf8f4}
+td.n,th.n{text-align:right;font-variant-numeric:tabular-nums}
+.vuoto{padding:34px;text-align:center;color:var(--tenue)}
+.vuoto b{display:block;color:var(--testo);margin-bottom:6px;font-size:15px}
+
+/* ---- comandi ---- */
+.barra{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}
+.barra input[type=search],.barra select,.barra input[type=date]{padding:7px 10px;border:1px solid var(--linea);border-radius:6px;background:#fff}
+.bt{background:var(--acciaio);color:#fff;border:0;border-radius:6px;padding:8px 13px;cursor:pointer;font-weight:500}
+.bt:hover{background:var(--acciaio-2)}
+.bt.pri{background:var(--pomodoro)}
+.bt.pri:hover{background:var(--pomodoro-chiaro)}
+.bt.leggero{background:#fff;color:var(--testo);border:1px solid var(--linea)}
+.bt.leggero:hover{background:#f2efe9}
+.bt.micro{padding:4px 8px;font-size:12px}
+.bt:disabled{opacity:.45;cursor:not-allowed}
+
+.tag{display:inline-block;padding:2px 8px;border-radius:20px;font-size:11.5px;font-weight:600}
+.t-rossa{background:#fbe9e9;color:var(--pomodoro)}
+.t-verde{background:#e7f0e7;color:var(--basilico)}
+.t-att{background:#e7f0e7;color:var(--basilico)}
+.t-bozza{background:#efece5;color:#6f7a80}
+.t-alert{background:#fbe9e9;color:var(--pomodoro)}
+.t-attesa{background:#fdf1dc;color:#8a6212}
+.lingua{display:inline-block;background:#eeebe4;border:1px solid var(--linea);border-radius:4px;padding:1px 6px;font-size:11px;margin-right:3px}
+
+/* ---- finestre ---- */
+.velo{position:fixed;inset:0;background:#1d2a3266;display:none;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:60;overflow:auto}
+.velo.aperto{display:flex}
+.finestra{background:#fff;border-radius:12px;width:100%;max-width:820px;box-shadow:0 24px 60px #0003}
+.finestra header{background:var(--acciaio);border-radius:12px 12px 0 0;position:static}
+.finestra .corpo{padding:18px}
+.finestra .piede{padding:14px 18px;border-top:1px solid var(--linea);display:flex;gap:8px;justify-content:flex-end;background:#faf8f4;border-radius:0 0 12px 12px}
+.campo{margin-bottom:12px}
+.campo label{display:block;font-size:12px;color:var(--tenue);margin-bottom:4px}
+.campo input,.campo select,.campo textarea{width:100%;padding:8px 10px;border:1px solid var(--linea);border-radius:6px;background:#fff}
+.campo textarea{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:12px}
+code{background:#eeebe4;padding:1px 5px;border-radius:4px;font-size:12px}
+.campo input:focus,.campo select:focus{outline:2px solid var(--pomodoro-chiaro);outline-offset:-1px}
+.aiuto{font-size:12px;color:var(--tenue);margin-top:4px}
+
+.avviso{background:#fdf1dc;border:1px solid #e8d3a5;border-radius:8px;padding:11px 14px;margin-bottom:14px;font-size:13px}
+.avviso.grave{background:#fbe9e9;border-color:#edc2c4}
+.avviso.ok{background:#e7f0e7;border-color:#c2d8c4}
+
+.spunta{display:flex;align-items:center;gap:6px;padding:4px 0}
+.spunta input{width:auto}
+.riga-doc{display:grid;grid-template-columns:1fr 130px 110px 110px 34px;gap:8px;margin-bottom:8px;align-items:center}
+@media(max-width:700px){.riga-doc{grid-template-columns:1fr 1fr}}
+.elimina{background:none;border:0;color:var(--pomodoro);cursor:pointer;font-size:17px;line-height:1}
+.brt{font-size:12px;color:var(--tenue);border-top:1px solid var(--linea);padding-top:8px;margin-top:8px}
+details.matrice{border:1px solid var(--linea);border-radius:8px;padding:10px 12px;margin-bottom:8px;background:#fff}
+details.matrice summary{cursor:pointer;font-weight:600}
+.pill{background:#eeebe4;border-radius:6px;padding:2px 7px;font-size:12px;margin-left:6px;color:#4a545a}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="marchio">DOMUS FOOD<small>ANTICA DISPENSA NAPOLI · GESTIONALE</small></div>
+  <div class="stato">
+    <span class="pallino" id="pallino"></span><span id="testoStato">Avvio…</span>
+    <button onclick="apriImpostazioni()">Impostazioni</button>
+    <button onclick="esci()">Esci</button>
+  </div>
+</header>
+
+<nav id="menu"></nav>
+
+<main>
+  <!-- CRUSCOTTO -->
+  <section id="v-cruscotto">
+    <h2>Cruscotto</h2>
+    <p class="sottotitolo">Tutto quello che serve sapere in dieci secondi: cassa, vendite, margine e le cose che stanno per finire.</p>
+    <div id="allarmi"></div>
+    <div class="griglia g4" id="kpi"></div>
+    <div class="griglia g2">
+      <div class="riquadro"><h3>Prossime scadenze</h3><div id="scadenze"></div></div>
+      <div class="riquadro"><h3>Ultimi movimenti di magazzino</h3><div id="ultimiMov"></div></div>
+    </div>
+    <div class="riquadro"><h3>Vendite per prodotto (anno in corso)</h3><div id="venditeProdotto"></div></div>
+  </section>
+
+  <!-- PRODOTTI -->
+  <section id="v-prodotti">
+    <h2>Prodotti</h2>
+    <p class="sottotitolo">Un codice per ogni prodotto in ogni formato. Ogni codice porta con sé le sue etichette: crei il prodotto, le etichette nascono da sole.</p>
+    <div class="barra">
+      <button class="bt pri" onclick="nuovoProdotto()">Nuovo prodotto</button>
+      <button class="bt" onclick="apriCosti()">Aggiorna costi</button>
+      <button class="bt leggero" onclick="caricaCatalogoIniziale()">Ricarica catalogo</button>
+      <button class="bt leggero" onclick="apriGeneratore()">Generatore</button>
+      <input type="search" id="cercaProdotti" placeholder="Cerca codice o nome…" oninput="disegnaProdotti()">
+      <select id="filtroLinea" onchange="disegnaProdotti()"><option value="">Tutte le linee</option><option>Rossa</option><option>Verde</option></select>
+      <select id="filtroFormato" onchange="disegnaProdotti()"></select>
+      <span class="pill" id="contoProdotti"></span>
+    </div>
+    <div class="tabella-wrap"><table><thead><tr>
+      <th>Codice</th><th>Prodotto</th><th>Formato</th><th class="n">Netto pz</th><th class="n">Pz/cart.</th><th class="n">Kg/cart.</th>
+      <th class="n">Costo cart.</th><th>Etichette</th><th class="n">Giacenza cart.</th><th></th>
+    </tr></thead><tbody id="tbProdotti"></tbody></table></div>
+  </section>
+
+  <!-- ETICHETTE -->
+  <section id="v-etichette">
+    <h2>Etichette</h2>
+    <p class="sottotitolo">Tre versioni per ogni formato: Italia, multilingua export e USA, che ha i Nutrition Facts in unità americane e quindi è un impianto a sé. Fornitore diverso dalle scatole, quindi magazzino separato.</p>
+    <div class="avviso"><b>Come gira</b> — 1. Lo stampatore consegna: premi <b>Carico</b> sulla riga dell'etichetta e inserisci il DDT. 2. Il produttore confeziona: apri una <b>commessa</b> e scegli quale versione di etichetta applicare. 3. Il gestionale scarica una etichetta per ogni barattolo (55 cartoni di pelati 6x3000 = 330 etichette) e il resto della stampa resta disponibile.</div>
+    <div class="barra">
+      <button class="bt pri" onclick="nuovaEtichetta()">Nuova etichetta</button>
+      <button class="bt leggero" onclick="allineaEtichette()">Allinea versioni</button>
+      <input type="search" id="cercaEtichette" placeholder="Cerca codice, prodotto o versione…" oninput="disegnaEtichette()">
+      <select id="filtroLingua" onchange="disegnaEtichette()"></select>
+      <label class="spunta"><input type="checkbox" id="soloSottoScorta" onchange="disegnaEtichette()"> Solo sotto scorta</label>
+      <span class="pill" id="contoEtichette"></span>
+    </div>
+    <div class="tabella-wrap"><table><thead><tr>
+      <th>Codice etichetta</th><th>Prodotto collegato</th><th>Formato</th><th>Versione</th><th>Mercato</th><th>Fornitore</th>
+      <th class="n">€/1000</th><th class="n">Stampate</th><th class="n">Usate</th><th class="n">Disponibili</th><th class="n">Scorta min.</th><th>Stato</th><th></th>
+    </tr></thead><tbody id="tbEtichette"></tbody></table></div>
+  </section>
+
+  <!-- COMMESSE -->
+  <section id="v-commesse">
+    <h2>Commesse di produzione</h2>
+    <p class="sottotitolo">È qui che registri quello che ti confeziona il produttore. Alla conferma carica i cartoni e scarica le etichette, una per barattolo: 55 cartoni di pelati 6x3000 consumano 330 etichette della versione che scegli. Se non bastano te lo dice prima.</p>
+    <div class="barra">
+      <button class="bt pri" onclick="nuovaCommessa()">Nuova commessa</button>
+      <select id="filtroStatoCommessa" onchange="disegnaCommesse()"><option value="">Tutti gli stati</option><option>Bozza</option><option>In produzione</option><option>Prodotta</option></select>
+    </div>
+    <div class="tabella-wrap"><table><thead><tr>
+      <th>N.</th><th>Data</th><th>Produttore</th><th>Righe</th><th class="n">Cartoni</th><th class="n">Etichette</th><th class="n">Valore costo</th><th>Stato</th><th></th>
+    </tr></thead><tbody id="tbCommesse"></tbody></table></div>
+  </section>
+
+  <!-- VENDITE -->
+  <section id="v-vendite">
+    <h2>Vendite</h2>
+    <p class="sottotitolo">Ordini e fatture ai clienti. Alla conferma scarica il magazzino e crea la scadenza di incasso: 25% all'ordine, saldo prima della partenza merce.</p>
+    <div class="barra">
+      <button class="bt pri" onclick="nuovaVendita()">Nuovo ordine cliente</button>
+      <select id="filtroStatoVendita" onchange="disegnaVendite()"><option value="">Tutti gli stati</option><option>Bozza</option><option>Confermato</option><option>Spedito</option><option>Fatturato</option></select>
+      <input type="search" id="cercaVendite" placeholder="Cerca cliente…" oninput="disegnaVendite()">
+    </div>
+    <div class="tabella-wrap"><table><thead><tr>
+      <th>N.</th><th>Data</th><th>Cliente</th><th>Mercato</th><th class="n">Cartoni</th><th class="n">Imponibile</th><th class="n">Costo</th><th class="n">Margine</th><th>Stato</th><th>Incasso</th><th></th>
+    </tr></thead><tbody id="tbVendite"></tbody></table></div>
+  </section>
+
+  <!-- ACQUISTI -->
+  <section id="v-acquisti">
+    <h2>Acquisti e costi</h2>
+    <p class="sottotitolo">Scatole, etichette, trasporti, provvigioni e costi generali. Gli acquisti di etichette caricano il magazzino etichette.</p>
+    <div class="barra">
+      <button class="bt pri" onclick="nuovoAcquisto()">Nuovo acquisto</button>
+      <select id="filtroCatAcquisto" onchange="disegnaAcquisti()"><option value="">Tutte le categorie</option></select>
+    </div>
+    <div class="tabella-wrap"><table><thead><tr>
+      <th>Data</th><th>Fornitore</th><th>Categoria</th><th>Documento</th><th>Dettaglio</th><th class="n">Imponibile</th><th>Scadenza</th><th>Stato</th><th></th>
+    </tr></thead><tbody id="tbAcquisti"></tbody></table></div>
+  </section>
+
+  <!-- MAGAZZINO -->
+  <section id="v-magazzino">
+    <h2>Magazzino</h2>
+    <p class="sottotitolo">Giacenze di prodotto finito e di etichette, con il valore a costo. Ogni rettifica resta scritta nello storico.</p>
+    <div class="barra">
+      <button class="bt pri" onclick="nuovaRettifica()">Rettifica giacenza</button>
+      <button class="bt leggero" onclick="esportaMagazzino()">Scarica in Excel</button>
+    </div>
+    <div class="griglia g2">
+      <div class="riquadro"><h3>Prodotto finito</h3><div id="magProdotti"></div></div>
+      <div class="riquadro"><h3>Etichette</h3><div id="magEtichette"></div></div>
+    </div>
+    <div class="riquadro"><h3>Storico movimenti</h3>
+      <div class="barra"><input type="search" id="cercaMov" placeholder="Cerca articolo o causale…" oninput="disegnaMagazzino()"></div>
+      <div id="storicoMov"></div>
+    </div>
+  </section>
+
+  <!-- CASSA -->
+  <section id="v-cassa">
+    <h2>Giro cassa</h2>
+    <p class="sottotitolo">Incassi e pagamenti, previsti e fatti. Il saldo previsto dice quanto avrai in banca se tutti pagano alla scadenza.</p>
+    <div class="barra">
+      <button class="bt pri" onclick="nuovoMovCassa()">Movimento manuale</button>
+      <select id="filtroPeriodoCassa" onchange="disegnaCassa()">
+        <option value="30">Prossimi 30 giorni</option><option value="60">Prossimi 60 giorni</option>
+        <option value="90">Prossimi 90 giorni</option><option value="9999">Tutto</option>
+      </select>
+    </div>
+    <div class="griglia g4" id="kpiCassa"></div>
+    <div class="riquadro"><h3>Scadenzario</h3><div id="tabCassa"></div></div>
+  </section>
+
+  <!-- LISTINO -->
+  <section id="v-listino">
+    <h2>Listino</h2>
+    <p class="sottotitolo">Prezzi calcolati sul costo d'acquisto con il ricarico che scegli. Stessa struttura dello specchietto: €/cartone, €/scatola, €/kg.</p>
+    <div class="barra">
+      <label>Ricarico</label>
+      <select id="ricarico" onchange="disegnaListino()"><option value="0.10">10%</option><option value="0.13" selected>13%</option><option value="0.20">20%</option><option value="0.30">30%</option></select>
+      <label>Costo viaggio €</label><input type="number" id="costoViaggio" value="600" style="width:80px;padding:7px;border:1px solid var(--linea);border-radius:6px" oninput="disegnaListino()">
+      <label>Pedane</label><input type="number" id="nPedane" value="12" style="width:60px;padding:7px;border:1px solid var(--linea);border-radius:6px" oninput="disegnaListino()">
+      <select id="listinoLingua" onchange="disegnaListino()"><option value="it">Italiano</option><option value="en">English</option></select>
+      <button class="bt leggero" onclick="esportaListino()">Scarica in Excel</button>
+    </div>
+    <div id="tabListino"></div>
+  </section>
+
+  <!-- ANAGRAFICHE -->
+  <section id="v-anagrafiche">
+    <h2>Clienti e fornitori</h2>
+    <p class="sottotitolo">Chi compra e chi ci fornisce. I nomi inseriti qui compaiono nei menu a tendina di ordini e acquisti.</p>
+    <div class="barra"><button class="bt pri" onclick="nuovaAnagrafica()">Nuovo nominativo</button></div>
+    <div class="tabella-wrap"><table><thead><tr>
+      <th>Nome</th><th>Tipo</th><th>Paese</th><th>Mercato</th><th>P.IVA</th><th>Referente</th><th>Contatti</th><th>Note</th><th></th>
+    </tr></thead><tbody id="tbAnagrafiche"></tbody></table></div>
+  </section>
+</main>
+
+<div class="velo" id="velo"><div class="finestra"><header><div class="marchio" id="titoloFinestra">Titolo</div></header><div class="corpo" id="corpoFinestra"></div><div class="piede" id="piedeFinestra"></div></div></div>
+
+<script>
+/* ============================================================
+   DOMUS FOOD — GESTIONALE
+   File unico. Sincronizzazione Firebase (Firestore).
+   Se non configuri Firebase, l'app funziona sul singolo computer.
+   ============================================================ */
+
+/* Configurazione del progetto Firebase di Domus Food (domus-food-gestionale).
+   È già dentro il file: all'apertura il gestionale si collega da solo e chiede l'accesso.
+   Se un domani cambi progetto, puoi sovrascriverla da Impostazioni. */
+const CONFIG_FIREBASE = {
+  apiKey: "AIzaSyAVUdnhxqfIajCyKt04TdkwShJRetE9SnI",
+  authDomain: "domus-food-gestionale.firebaseapp.com",
+  projectId: "domus-food-gestionale",
+  storageBucket: "domus-food-gestionale.firebasestorage.app",
+  messagingSenderId: "398927586370",
+  appId: "1:398927586370:web:b2a152b75cba0eca0f79db"
+};
+
+const COLL = {
+  prodotti:"domus_prodotti", etichette:"domus_etichette", commesse:"domus_commesse",
+  vendite:"domus_vendite", acquisti:"domus_acquisti", movimenti:"domus_movimenti",
+  cassa:"domus_cassa", anagrafiche:"domus_anagrafiche", allegati:"domus_allegati"
+};
+const COLL_FILE="domus_allegati_dati";  /* contenuto dei file, letto solo su richiesta */
+
+const S = {prodotti:[],etichette:[],commesse:[],vendite:[],acquisti:[],movimenti:[],cassa:[],anagrafiche:[],allegati:[]};
+
+/* ---- formati: il formato della scatola decide il formato dell'etichetta ---- */
+const FORMATI = {
+  "12x500":  {sigla:"0500", pezzi:12, nettoStd:400,  lordoCart:5.6,  cartoniPedana:144, etichetta:"fascetta 500 g"},
+  "12x700":  {sigla:"0700", pezzi:12, nettoStd:690,  lordoCart:9.4,  cartoniPedana:0,   etichetta:"bottiglia 690 g"},
+  "12x1000": {sigla:"1000", pezzi:12, nettoStd:800,  lordoCart:10.8, cartoniPedana:72,  etichetta:"fascetta 1000 g"},
+  "6x3000":  {sigla:"3000", pezzi:6,  nettoStd:2500, lordoCart:17.2, cartoniPedana:55,  etichetta:"fascetta 3000 g"}
+};
+/* versioni di etichetta: non sono lingue, sono impianti diversi.
+   L'etichetta USA ha i Nutrition Facts in unità americane, quindi è un codice a sé. */
+const LINGUE = {
+  IT:"Italia",
+  EXP:"Multilingua export (EN/FR/ES)",
+  USA:"USA (Nutrition Facts)"
+};
+const MERCATO_STD = {IT:"Italia", EXP:"Export Europa", USA:"Stati Uniti"};
+const CATEGORIE_COSTO = ["Prodotto (scatole)","Etichette","Trasporto","Provvigioni","Fiera e marketing","Consulenze","Generali"];
+
+/* catalogo reale — listino Antica Dispensa 2026, quotazioni fornitore valide fino al 30/06/2027.
+   costoCart = costo d'acquisto EXW per cartone; pedana = cartoni per EPAL 80x120 */
+const SKU = [
+  {sigla:"PEL",nome:"Pomodori pelati",en:"Peeled tomatoes",linea:"Rossa",formato:"12x500",netto:400,pezzi:12,costoCart:4.32,pedana:144,pedanaUS:88},
+  {sigla:"POL",nome:"Polpa di pomodoro",en:"Chopped tomatoes",linea:"Rossa",formato:"12x500",netto:400,pezzi:12,costoCart:4.20,pedana:144,pedanaUS:88},
+  {sigla:"PAS",nome:"Passata di pomodoro",en:"Tomato passata",linea:"Rossa",formato:"12x700",netto:690,pezzi:12,costoCart:6.96,pedana:60,pedanaUS:0,nota:"bottiglia · pedana stimata, da confermare"},
+  {sigla:"PEL",nome:"Pomodori pelati",en:"Peeled tomatoes",linea:"Rossa",formato:"12x1000",netto:800,pezzi:12,costoCart:8.64,pedana:72,pedanaUS:88},
+  {sigla:"PEL",nome:"Pomodori pelati",en:"Peeled tomatoes",linea:"Rossa",formato:"6x3000",netto:2500,pezzi:6,costoCart:11.40,pedana:55,pedanaUS:75},
+  {sigla:"POL",nome:"Polpa di pomodoro",en:"Chopped tomatoes",linea:"Rossa",formato:"6x3000",netto:2500,pezzi:6,costoCart:11.22,pedana:55,pedanaUS:75},
+  {sigla:"PAS",nome:"Passata di pomodoro",en:"Tomato passata",linea:"Rossa",formato:"6x3000",netto:2550,pezzi:6,costoCart:13.00,pedana:55,pedanaUS:75,nota:"altra fornitura, costo invariato"},
+  {sigla:"POC",nome:"Pomodorini di collina",en:"Hill cherry tomatoes",linea:"Rossa",formato:"6x3000",netto:2550,pezzi:6,costoCart:16.50,pedana:55,pedanaUS:75,nota:"altra fornitura, costo invariato"},
+  {sigla:"BOR",nome:"Borlotti",en:"Borlotti beans",linea:"Verde",formato:"12x500",netto:400,pezzi:12,costoCart:3.60,pedana:144,pedanaUS:88},
+  {sigla:"CAN",nome:"Cannellini",en:"Cannellini beans",linea:"Verde",formato:"12x500",netto:400,pezzi:12,costoCart:3.78,pedana:144,pedanaUS:88},
+  {sigla:"CEC",nome:"Ceci",en:"Chickpeas",linea:"Verde",formato:"12x500",netto:400,pezzi:12,costoCart:3.48,pedana:144,pedanaUS:88},
+  {sigla:"LEN",nome:"Lenticchie",en:"Lentils",linea:"Verde",formato:"12x500",netto:400,pezzi:12,costoCart:3.48,pedana:144,pedanaUS:88},
+  {sigla:"PIS",nome:"Piselli",en:"Green peas",linea:"Verde",formato:"12x500",netto:400,pezzi:12,costoCart:3.36,pedana:144,pedanaUS:88},
+  {sigla:"FCP",nome:"Fagioli cotti al pomodoro",en:"Baked beans in tomato sauce",linea:"Verde",formato:"6x3000",netto:2600,pezzi:6,costoCart:11.50,pedana:55,pedanaUS:75},
+  {sigla:"BOR",nome:"Borlotti",en:"Borlotti beans",linea:"Verde",formato:"6x3000",netto:2600,pezzi:6,costoCart:11.10,pedana:55,pedanaUS:75},
+  {sigla:"CAN",nome:"Cannellini",en:"Cannellini beans",linea:"Verde",formato:"6x3000",netto:2600,pezzi:6,costoCart:11.70,pedana:55,pedanaUS:75},
+  {sigla:"CEC",nome:"Ceci",en:"Chickpeas",linea:"Verde",formato:"6x3000",netto:2600,pezzi:6,costoCart:10.14,pedana:55,pedanaUS:75},
+  {sigla:"LEN",nome:"Lenticchie",en:"Lentils",linea:"Verde",formato:"6x3000",netto:2600,pezzi:6,costoCart:10.50,pedana:55,pedanaUS:75},
+  {sigla:"PIS",nome:"Piselli",en:"Green peas",linea:"Verde",formato:"6x3000",netto:2600,pezzi:6,costoCart:9.84,pedana:55,pedanaUS:75},
+  {sigla:"ROS",nome:"Fagioli rossi",en:"Red kidney beans",linea:"Verde",formato:"6x3000",netto:2600,pezzi:6,costoCart:12.00,pedana:55,pedanaUS:75}
+];
+const CATALOGO = SKU.filter((s,i,a)=>a.findIndex(x=>x.sigla===s.sigla)===i)
+  .map(s=>({sigla:s.sigla,nome:s.nome,en:s.en,linea:s.linea}));
+
+/* ============================ archivio dati ============================ */
+let db=null, online=false, utente=null, ascolto=false;
+const locale = {
+  leggi(c){ try{return JSON.parse(localStorage.getItem("df_"+c)||"[]")}catch(e){return []} },
+  scrivi(c,v){ try{localStorage.setItem("df_"+c,JSON.stringify(v))}catch(e){} }
+};
+function cfgSalvata(){ try{return JSON.parse(localStorage.getItem("df_firebase")||"null")}catch(e){return null} }
+
+function avvia(){
+  const salvata = cfgSalvata();
+  const cfg = (salvata && salvata.apiKey) ? salvata : (CONFIG_FIREBASE.apiKey ? CONFIG_FIREBASE : null);
+  if(cfg && cfg.apiKey){
+    try{
+      firebase.initializeApp(cfg); db = firebase.firestore(); online = true;
+      firebase.auth().onAuthStateChanged(u=>{
+        utente=u;
+        if(u){ chiudiAccesso(); stato(true,u.email||"Sincronizzato"); ascolta(); }
+        else { stato(false,"Accesso richiesto"); mostraAccesso(); }
+      });
+      return;
+    }catch(e){ console.error(e); }
+  }
+  online=false; stato(false,"Solo questo computer");
+  Object.keys(COLL).forEach(k=>S[k]=locale.leggi(k));
+  disegnaTutto();
+  primaVolta();
+}
+function ascolta(){
+  if(ascolto) return; ascolto=true;
+  Object.entries(COLL).forEach(([k,c])=>{
+    db.collection(c).onSnapshot(s=>{
+      S[k] = s.docs.map(d=>({id:d.id,...d.data()}));
+      disegnaTutto();
+      if(k==="prodotti") primaVolta();
+    }, e=>{ stato(false,"Errore di lettura"); console.error(e); });
+  });
+}
+function mostraAccesso(){
+  if(document.getElementById("accesso")) return;
+  const d=document.createElement("div");
+  d.id="accesso"; d.className="velo aperto"; d.style.background="var(--acciaio)";
+  d.innerHTML=`<div class="finestra" style="max-width:420px;margin-top:6vh">
+    <header><div class="marchio">DOMUS FOOD<small>ACCESSO AL GESTIONALE</small></div></header>
+    <div class="corpo">
+      <div class="campo"><label>Email</label><input id="ac_mail" type="email" autocomplete="username"></div>
+      <div class="campo"><label>Password</label><input id="ac_pw" type="password" autocomplete="current-password" onkeydown="if(event.key==='Enter')entra()"></div>
+      <div id="ac_err"></div>
+    </div>
+    <div class="piede"><button class="bt leggero" onclick="apriImpostazioni()">Impostazioni</button><button class="bt pri" onclick="entra()">Entra</button></div></div>`;
+  document.body.appendChild(d);
+}
+function chiudiAccesso(){ const d=document.getElementById("accesso"); if(d) d.remove(); }
+async function entra(){
+  const err=document.getElementById("ac_err");
+  try{
+    await firebase.auth().signInWithEmailAndPassword(val("ac_mail").trim(),val("ac_pw"));
+  }catch(e){
+    const m={"auth/invalid-credential":"Email o password non corretti.",
+      "auth/user-not-found":"Questo utente non esiste ancora: va creato dalla console Firebase.",
+      "auth/wrong-password":"Password non corretta.",
+      "auth/operation-not-allowed":"Nella console Firebase manca il metodo di accesso Email/Password: va attivato in Authentication."}[e.code];
+    err.innerHTML=`<div class="avviso grave">${m||esc(e.message)}</div>`;
+  }
+}
+async function esci(){ if(online&&firebase.auth().currentUser){ ascolto=false; await firebase.auth().signOut(); location.reload(); } }
+let seedInCorso=false;
+function primaVolta(){
+  if(seedInCorso) return;
+  let gia=null,ver=null;
+  try{ gia=localStorage.getItem("df_seed"); ver=localStorage.getItem("df_ver3"); }catch(e){}
+  if(!S.prodotti.length){
+    if(gia) return;
+    seedInCorso=true;
+    caricaCatalogoIniziale(true).then(()=>{ seedInCorso=false; disegnaTutto(); });
+    return;
+  }
+  if(!ver&&S.etichette.length){
+    seedInCorso=true;
+    allineaEtichette(true).then(()=>{ seedInCorso=false; disegnaTutto(); });
+  }
+}
+function stato(ok,txt){
+  document.getElementById("pallino").className = "pallino "+(ok?"on":"off");
+  document.getElementById("testoStato").textContent = txt;
+}
+async function salva(coll,obj){
+  if(!obj.id) obj.id = coll.slice(0,2)+"_"+Date.now()+"_"+Math.random().toString(36).slice(2,6);
+  obj.aggiornato = new Date().toISOString();
+  if(online){ const {id,...d}=obj; await db.collection(COLL[coll]).doc(id).set(d,{merge:true}); }
+  else { const a=S[coll]; const i=a.findIndex(x=>x.id===obj.id); i>=0?a[i]=obj:a.push(obj); locale.scrivi(coll,a); disegnaTutto(); }
+  return obj.id;
+}
+async function cancella(coll,id){
+  if(online){ await db.collection(COLL[coll]).doc(id).delete(); }
+  else { S[coll]=S[coll].filter(x=>x.id!==id); locale.scrivi(coll,S[coll]); disegnaTutto(); }
+}
+
+/* ============================ allegati ============================
+   I documenti stanno dentro il gestionale, non in una cartella esterna.
+   Il contenuto è spezzato in parti e salvato in una collezione separata,
+   letta solo quando apri il file: così non pesa sulla sincronizzazione. */
+const PARTE=400000, MAX_PARTI=14;
+
+function leggiComeDataURL(file){
+  return new Promise((ok,no)=>{ const r=new FileReader(); r.onload=()=>ok(r.result); r.onerror=no; r.readAsDataURL(file); });
+}
+function comprimiImmagine(dataUrl){
+  return new Promise(ok=>{
+    const img=new Image();
+    img.onload=()=>{
+      const max=1600, sc=Math.min(1,max/Math.max(img.width,img.height));
+      const c=document.createElement("canvas");
+      c.width=Math.round(img.width*sc); c.height=Math.round(img.height*sc);
+      c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+      ok(c.toDataURL("image/jpeg",0.72));
+    };
+    img.onerror=()=>ok(dataUrl);
+    img.src=dataUrl;
+  });
+}
+async function caricaFileAllegato(file,rif,descrizione){
+  let dataUrl=await leggiComeDataURL(file);
+  let tipo=file.type||"application/octet-stream";
+  if(tipo.startsWith("image/")){ dataUrl=await comprimiImmagine(dataUrl); tipo="image/jpeg"; }
+  const parti=[];
+  for(let i=0;i<dataUrl.length;i+=PARTE) parti.push(dataUrl.slice(i,i+PARTE));
+  if(parti.length>MAX_PARTI) throw new Error("Il file è troppo grande (oltre 5 MB). Fotografalo o riducilo e riprova.");
+  const id="al_"+Date.now()+"_"+Math.random().toString(36).slice(2,6);
+  for(let i=0;i<parti.length;i++){
+    if(online) await db.collection(COLL_FILE).doc(id+"_"+i).set({d:parti[i]});
+    else localStorage.setItem("df_file_"+id+"_"+i,parti[i]);
+  }
+  await salva("allegati",{id,rif:rif||"",nome:file.name,tipo,byte:dataUrl.length,
+    parti:parti.length,data:oggi(),descrizione:descrizione||""});
+  return id;
+}
+async function apriAllegato(id){
+  const a=S.allegati.find(x=>x.id===id); if(!a){ alert("Documento non trovato."); return; }
+  let s="";
+  for(let i=0;i<a.parti;i++){
+    if(online){ const d=await db.collection(COLL_FILE).doc(id+"_"+i).get(); s+=(d.data()||{}).d||""; }
+    else s+=localStorage.getItem("df_file_"+id+"_"+i)||"";
+  }
+  const b64=s.split(",")[1]||"";
+  const bin=atob(b64), arr=new Uint8Array(bin.length);
+  for(let i=0;i<bin.length;i++) arr[i]=bin.charCodeAt(i);
+  const url=URL.createObjectURL(new Blob([arr],{type:a.tipo}));
+  const w=window.open(url,"_blank");
+  if(!w){ const l=document.createElement("a"); l.href=url; l.download=a.nome; l.click(); }
+}
+async function eliminaAllegatiDi(rif){
+  for(const a of S.allegati.filter(x=>x.rif===rif)){
+    for(let i=0;i<a.parti;i++){
+      if(online) await db.collection(COLL_FILE).doc(a.id+"_"+i).delete();
+      else localStorage.removeItem("df_file_"+a.id+"_"+i);
+    }
+    await cancella("allegati",a.id);
+  }
+}
+function clip(rif){
+  const a=S.allegati.filter(x=>x.rif===rif);
+  return a.map(x=>`<button class="bt leggero micro" title="${esc(x.nome)}" onclick="apriAllegato('${x.id}')">Documento</button>`).join(" ");
+}
+async function allegaDa(inputId,rif,descrizione){
+  const inp=document.getElementById(inputId);
+  if(!inp||!inp.files||!inp.files[0]) return "";
+  try{ return await caricaFileAllegato(inp.files[0],rif,descrizione); }
+  catch(e){ alert(e.message||"Non sono riuscito a salvare il documento."); return ""; }
+}
+const eur = n => (Number(n)||0).toLocaleString("it-IT",{style:"currency",currency:"EUR",maximumFractionDigits:2});
+const num = (n,d=0) => (Number(n)||0).toLocaleString("it-IT",{minimumFractionDigits:d,maximumFractionDigits:d});
+const oggi = () => new Date().toISOString().slice(0,10);
+const dataIt = s => s? s.split("-").reverse().join("/") : "";
+const esc = s => String(s??"").replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const giorniDa = s => Math.round((new Date(s)-new Date(oggi()))/86400000);
+const prod = id => S.prodotti.find(p=>p.id===id);
+const etic = id => S.etichette.find(e=>e.id===id);
+function addGiorni(d,g){ const x=new Date(d); x.setDate(x.getDate()+g); return x.toISOString().slice(0,10); }
+
+/* ============================ navigazione ============================ */
+const VISTE = [
+  ["cruscotto","Cruscotto"],["prodotti","Prodotti"],["etichette","Etichette"],["commesse","Commesse"],
+  ["vendite","Vendite"],["acquisti","Acquisti"],["magazzino","Magazzino"],["cassa","Giro cassa"],
+  ["listino","Listino"],["anagrafiche","Clienti e fornitori"]
+];
+let vistaAttiva = "cruscotto";
+document.getElementById("menu").innerHTML = VISTE.map(([k,n])=>`<button data-v="${k}" onclick="vaiA('${k}')">${n}</button>`).join("");
+function vaiA(v){
+  vistaAttiva=v;
+  document.querySelectorAll("nav button").forEach(b=>b.classList.toggle("attivo",b.dataset.v===v));
+  document.querySelectorAll("section").forEach(s=>s.classList.toggle("attiva",s.id==="v-"+v));
+  disegnaTutto();
+}
+
+/* ============================ giacenze ============================ */
+function giacenzaProdotto(id){
+  return S.movimenti.filter(m=>m.tipoArt==="P"&&m.artId===id).reduce((s,m)=>s+(Number(m.qta)||0),0);
+}
+function giacenzaEtichetta(id){
+  return S.movimenti.filter(m=>m.tipoArt==="E"&&m.artId===id).reduce((s,m)=>s+(Number(m.qta)||0),0);
+}
+function movEtichetta(id){
+  const m=S.movimenti.filter(x=>x.tipoArt==="E"&&x.artId===id);
+  const entrate=m.filter(x=>x.qta>0).reduce((s,x)=>s+x.qta,0);
+  const uscite=Math.abs(m.filter(x=>x.qta<0).reduce((s,x)=>s+x.qta,0));
+  return {entrate,uscite,g:entrate-uscite};
+}
+function caricaEtichette(id){
+  const e=etic(id), p=prod(e.prodottoId);
+  finestra("Carico etichette da DDT — "+e.codice,`
+    <div class="avviso">Registra il DDT dello stampatore. Le etichette entrano in magazzino e restano disponibili finché non le consumi con una commessa: ne stampi 6.000, ne usi 720, ne restano 5.280.</div>
+    <div class="griglia g3">
+      <div class="campo"><label>Quantità ricevuta (pezzi)</label><input id="ce_qta" type="number" placeholder="6000" oninput="antCarico()"></div>
+      <div class="campo"><label>N. DDT</label><input id="ce_ddt" placeholder="es. 412"></div>
+      <div class="campo"><label>Data DDT</label><input id="ce_data" type="date" value="${oggi()}"></div>
+    </div>
+    <div class="griglia g3">
+      <div class="campo"><label>Fornitore etichette</label><input id="ce_forn" value="${esc(e.fornitore||"")}" list="l_fornitori"></div>
+      <div class="campo"><label>Importo fattura (€, facoltativo)</label><input id="ce_imp" type="number" step="0.01" oninput="antCarico()"></div>
+      <div class="campo"><label>Scadenza pagamento</label><input id="ce_scad" type="date" value="${addGiorni(oggi(),30)}"></div>
+    </div>
+    <div class="campo"><label>DDT o fattura da conservare (PDF o foto)</label><input type="file" id="ce_file" accept="image/*,application/pdf">
+      <div class="aiuto">Il documento resta dentro il gestionale e lo riapri da qui o dallo storico movimenti. Le foto vengono ridotte in automatico.</div></div>
+    ${datalistFornitori()}
+    <div class="avviso" id="antCar">Disponibili adesso: <b>${num(giacenzaEtichetta(id))}</b> pezzi${p?` · bastano per ${num(Math.floor(giacenzaEtichetta(id)/p.pezzi))} cartoni di ${p.codice}`:""}</div>
+  `,`<button class="bt leggero" onclick="chiudi()">Annulla</button><button class="bt pri" onclick="salvaCaricoEtichette('${id}')">Registra carico</button>`);
+}
+function antCarico(){
+  const q=numv("ce_qta"), imp=numv("ce_imp");
+  if(!q) return;
+  document.getElementById("antCar").innerHTML=
+    `Entrano <b>${num(q)}</b> pezzi${imp?` · costo per mille: <b>${eur(imp/q*1000)}</b>`:""}${imp?` · l'importo finisce negli acquisti e in scadenza di pagamento`:""}`;
+}
+async function salvaCaricoEtichette(id){
+  const q=numv("ce_qta"); if(q<=0){ alert("Scrivi quante etichette sono arrivate."); return; }
+  const e=etic(id), ddt=val("ce_ddt"), data=val("ce_data"), forn=val("ce_forn"), imp=numv("ce_imp");
+  const mid=await movimento("E",id,q,`Carico DDT ${ddt||"s.n."} ${forn}`.trim(),"",data);
+  await allegaDa("ce_file","mov:"+mid,`DDT ${ddt||""} — ${e.codice}`.trim());
+  const agg={...e}; let cambia=false;
+  if(forn&&forn!==e.fornitore){ agg.fornitore=forn; cambia=true; }
+  if(imp>0){ agg.costoMille=+(imp/q*1000).toFixed(2); cambia=true; }
+  if(cambia) await salva("etichette",agg);
+  if(imp>0) {
+    const aid=await salva("acquisti",{data,fornitore:forn,categoria:"Etichette",
+      documento:"DDT "+(ddt||""),imponibile:imp,scadenza:val("ce_scad"),
+      descrizione:`${e.codice} × ${num(q)} pz`,movimentoId:mid,
+      stato:"Da pagare",etichettaId:"",qta:0});
+    await salva("cassa",{data:val("ce_scad"),tipo:"Pagamento",
+      descrizione:`Etichette ${e.codice} — ${forn} DDT ${ddt||""}`.trim(),
+      importo:-imp,stato:"Previsto",rif:"acquisto:"+aid});
+  }
+  chiudi();
+}
+async function movimento(tipoArt,artId,qta,causale,rif,data){
+  return await salva("movimenti",{tipoArt,artId,qta:Number(qta),causale,rif:rif||"",data:data||oggi()});
+}
+async function cancellaMovimentiDi(rif){
+  const da = S.movimenti.filter(m=>m.rif===rif);
+  for(const m of da) await cancella("movimenti",m.id);
+}
+
+/* ============================ finestre ============================ */
+function finestra(titolo,corpo,piede){
+  document.getElementById("titoloFinestra").textContent = titolo;
+  document.getElementById("corpoFinestra").innerHTML = corpo;
+  document.getElementById("piedeFinestra").innerHTML = piede ||
+    `<button class="bt leggero" onclick="chiudi()">Annulla</button>`;
+  document.getElementById("velo").classList.add("aperto");
+}
+function chiudi(){ const v=document.getElementById("velo"); v.classList.remove("aperto"); v.style.zIndex=""; }
+document.getElementById("velo").addEventListener("click",e=>{ if(e.target.id==="velo") chiudi(); });
+const val = id => (document.getElementById(id)||{}).value ?? "";
+const numv = id => Number(val(id))||0;
+
+/* ============================ PRODOTTI ============================ */
+function codiceProdotto(sigla,formato){ return sigla+"-"+FORMATI[formato].sigla; }
+function codiceEtichetta(codProd,lingua){ return "ET-"+codProd+"-"+lingua; }
+
+function nuovoProdotto(p){
+  p = p || {};
+  const opzSigla = CATALOGO.map(c=>`<option value="${c.sigla}" ${p.sigla===c.sigla?"selected":""}>${c.nome}</option>`).join("");
+  const opzForm = Object.keys(FORMATI).map(f=>`<option ${p.formato===f?"selected":""}>${f}</option>`).join("");
+  finestra(p.id?"Modifica prodotto":"Nuovo prodotto",`
+    <div class="griglia g2">
+      <div class="campo"><label>Prodotto</label><select id="f_sigla" onchange="anteprimaCodice()">${opzSigla}<option value="ALTRO" ${p.sigla==="ALTRO"?"selected":""}>Altro (scrivo io)</option></select></div>
+      <div class="campo"><label>Formato</label><select id="f_formato" onchange="anteprimaCodice()">${opzForm}</select></div>
+    </div>
+    <div class="griglia g2">
+      <div class="campo"><label>Nome commerciale</label><input id="f_nome" value="${esc(p.nome||"")}" placeholder="Compilato dal prodotto scelto"></div>
+      <div class="campo"><label>Nome in inglese</label><input id="f_en" value="${esc(p.en||"")}"></div>
+    </div>
+    <div class="griglia g4">
+      <div class="campo"><label>Linea</label><select id="f_linea"><option ${p.linea==="Rossa"?"selected":""}>Rossa</option><option ${p.linea==="Verde"?"selected":""}>Verde</option></select></div>
+      <div class="campo"><label>Peso netto pezzo (g)</label><input id="f_netto" type="number" value="${p.netto||""}"></div>
+      <div class="campo"><label>Pezzi per cartone</label><input id="f_pezzi" type="number" value="${p.pezzi||""}"></div>
+      <div class="campo"><label>Cartoni per pedana</label><input id="f_pedana" type="number" value="${p.cartoniPedana||""}"></div>
+    </div>
+    <div class="griglia g3">
+      <div class="campo"><label>Produttore</label><input id="f_fornitore" value="${esc(p.fornitore||"")}" list="l_fornitori" placeholder="Attianese, Gravina…"></div>
+      <div class="campo"><label>Costo d'acquisto per pezzo (€)</label><input id="f_costoPz" type="number" step="0.001" value="${p.costoPz||""}" oninput="calcCosto()"></div>
+      <div class="campo"><label>Costo per cartone (€)</label><input id="f_costoCart" type="number" step="0.01" value="${p.costoCart||""}"></div>
+    </div>
+    ${datalistFornitori()}
+    <div class="avviso" id="ant"></div>
+    ${p.id?"":`<div class="campo"><label>Versioni di etichetta da creare</label>
+      <div style="display:flex;flex-wrap:wrap;gap:12px">${Object.entries(LINGUE).map(([k,v])=>
+        `<label class="spunta"><input type="checkbox" class="lng" value="${k}" checked> ${v}</label>`).join("")}</div>
+      <div class="aiuto">Per ogni versione spuntata nasce un codice etichetta collegato a questo formato.</div></div>`}
+  `,`<button class="bt leggero" onclick="chiudi()">Annulla</button><button class="bt pri" onclick="salvaProdotto('${p.id||""}')">Salva prodotto</button>`);
+  anteprimaCodice();
+}
+function datalistFornitori(){
+  const f=[...new Set(S.anagrafiche.filter(a=>a.tipo!=="Cliente").map(a=>a.nome))];
+  return `<datalist id="l_fornitori">${f.map(n=>`<option>${esc(n)}</option>`).join("")}</datalist>`;
+}
+function anteprimaCodice(){
+  const sig=val("f_sigla"), fo=val("f_formato"), F=FORMATI[fo];
+  const c = CATALOGO.find(x=>x.sigla===sig);
+  if(c){
+    if(!document.getElementById("f_nome").value||document.getElementById("f_nome").dataset.auto!=="0"){
+      document.getElementById("f_nome").value=c.nome; document.getElementById("f_en").value=c.en;
+      document.getElementById("f_linea").value=c.linea;
+    }
+  }
+  if(F){
+    const n=document.getElementById("f_netto"), pz=document.getElementById("f_pezzi"), pd=document.getElementById("f_pedana");
+    if(!n.value) n.value = (document.getElementById("f_linea").value==="Verde"&&fo==="6x3000")?2600:F.nettoStd;
+    if(!pz.value) pz.value=F.pezzi;
+    if(!pd.value) pd.value=F.cartoniPedana||"";
+    const cod = codiceProdotto(sig==="ALTRO"?"XXX":sig,fo);
+    document.getElementById("ant").innerHTML =
+      `Codice prodotto <b>${cod}</b> · etichette <b>${cod}-IT</b>, <b>${cod}-EN</b>… (prefisso ET-) · formato etichetta: ${F.etichetta}`;
+  }
+}
+function calcCosto(){
+  const pz=numv("f_pezzi")||FORMATI[val("f_formato")].pezzi, c=numv("f_costoPz");
+  if(c) document.getElementById("f_costoCart").value=(c*pz).toFixed(2);
+}
+async function salvaProdotto(id){
+  const sigla = val("f_sigla")==="ALTRO" ? (val("f_nome").slice(0,3).toUpperCase()||"XXX") : val("f_sigla");
+  const formato = val("f_formato");
+  const p = {
+    id: id||undefined, sigla, formato, codice: codiceProdotto(sigla,formato),
+    nome: val("f_nome"), en: val("f_en"), linea: val("f_linea"),
+    netto: numv("f_netto"), pezzi: numv("f_pezzi"), cartoniPedana: numv("f_pedana"),
+    fornitore: val("f_fornitore"), costoPz: numv("f_costoPz"), costoCart: numv("f_costoCart")
+  };
+  p.kgCart = p.netto*p.pezzi/1000;
+  const nuovoId = await salva("prodotti",p);
+  if(!id){
+    const lingue=[...document.querySelectorAll(".lng:checked")].map(i=>i.value);
+    for(const l of lingue) await salva("etichette",{
+      prodottoId:nuovoId, codice:codiceEtichetta(p.codice,l), lingua:l,
+      mercato: l==="IT"?"Italia":"Export", fornitore:"", costoMille:0, scortaMin:0,
+      formatoEtichetta: FORMATI[formato].etichetta
+    });
+  }
+  chiudi();
+}
+function modificaProdotto(id){ nuovoProdotto(prod(id)); }
+async function eliminaProdotto(id){
+  const p=prod(id);
+  if(!confirm(`Elimino ${p.codice} e le sue etichette?`)) return;
+  for(const e of S.etichette.filter(e=>e.prodottoId===id)) await cancella("etichette",e.id);
+  await cancella("prodotti",id);
+}
+
+/* ---- catalogo precaricato: i 20 codici del listino 2026, costi inclusi ---- */
+const LINGUE_STD=["IT","EXP","USA"];
+
+/* converte le vecchie etichette EN in EXP e crea le versioni mancanti */
+async function allineaEtichette(silenzioso){
+  let conv=0, nuove=0;
+  for(const e of S.etichette.filter(x=>["EN","FR","ES","DE","AR"].includes(x.lingua))){
+    const p=prod(e.prodottoId);
+    const cod = p? codiceEtichetta(p.codice,"EXP") : e.codice.replace(/-(EN|FR|ES|DE|AR)$/,"-EXP");
+    if(S.etichette.some(x=>x.codice===cod&&x.id!==e.id)){ await cancella("etichette",e.id); continue; }
+    await salva("etichette",{...e,lingua:"EXP",codice:cod,mercato:e.mercato||MERCATO_STD.EXP}); conv++;
+  }
+  for(const p of S.prodotti){
+    for(const v of LINGUE_STD){
+      const cod=codiceEtichetta(p.codice,v);
+      if(S.etichette.some(x=>x.codice===cod)) continue;
+      await salva("etichette",{prodottoId:p.id,formato:p.formato,codice:cod,lingua:v,
+        mercato:MERCATO_STD[v],fornitore:"",costoMille:0,scortaMin:0,
+        formatoEtichetta:FORMATI[p.formato].etichetta}); nuove++;
+    }
+  }
+  try{ localStorage.setItem("df_ver3","1"); }catch(e){}
+  if(!silenzioso) alert(`Etichette allineate: ${conv} convertite in multilingua export, ${nuove} create.`);
+}
+
+async function caricaCatalogoIniziale(silenzioso){
+  if(S.prodotti.length && !silenzioso){
+    if(!confirm("Ci sono già dei prodotti. Aggiungo solo i codici mancanti?")) return;
+  }
+  let creati=0;
+  for(const s of SKU){
+    const codice=codiceProdotto(s.sigla,s.formato);
+    if(S.prodotti.some(p=>p.codice===codice)) continue;
+    const id=await salva("prodotti",{sigla:s.sigla,formato:s.formato,codice,nome:s.nome,en:s.en,linea:s.linea,
+      netto:s.netto,pezzi:s.pezzi,kgCart:+(s.netto*s.pezzi/1000).toFixed(3),
+      cartoniPedana:s.pedana,cartoniPedanaUS:s.pedanaUS||0,
+      fornitore:"",costoPz:+(s.costoCart/s.pezzi).toFixed(4),costoCart:s.costoCart,note:s.nota||""});
+    creati++;
+    for(const l of LINGUE_STD){
+      const cod=codiceEtichetta(codice,l);
+      if(S.etichette.some(e=>e.codice===cod)) continue;
+      await salva("etichette",{prodottoId:id,formato:s.formato,codice:cod,lingua:l,
+        mercato:MERCATO_STD[l],fornitore:"",costoMille:0,scortaMin:0,
+        formatoEtichetta:FORMATI[s.formato].etichetta});
+    }
+  }
+  try{ localStorage.setItem("df_seed","1"); localStorage.setItem("df_ver3","1"); }catch(e){}
+  if(!silenzioso) alert(creati+" codici prodotto creati con i costi del listino 2026 e le tre versioni di etichetta collegate.");
+}
+
+/* ---- inserimento costi in blocco ---- */
+function apriCosti(){
+  const el=[...S.prodotti].sort((a,b)=>a.codice.localeCompare(b.codice));
+  if(!el.length){ alert("Prima carica il catalogo."); return; }
+  finestra("Aggiorna costi d'acquisto",`
+    <div class="avviso">Scrivi il costo per barattolo oppure quello per cartone: l'altro si calcola da solo. In grigio trovi il costo del listino 2026, valido fino al 30/06/2027.</div>
+    <div class="tabella-wrap" style="max-height:52vh"><table><thead><tr>
+      <th>Codice</th><th>Prodotto</th><th>Formato</th><th class="n">€/barattolo</th><th class="n">€/cartone</th><th>Produttore</th>
+    </tr></thead><tbody>
+    ${el.map(p=>{const r=SKU.find(s=>codiceProdotto(s.sigla,s.formato)===p.codice);
+      return `<tr>
+      <td><b>${p.codice}</b></td><td>${esc(p.nome)}</td><td>${p.formato}</td>
+      <td class="n"><input type="number" step="0.0001" style="width:92px" id="cp_${p.id}" value="${p.costoPz||""}"
+        placeholder="${r?(r.costoCart/r.pezzi).toFixed(4):""}" oninput="sincCosto('${p.id}','pz',${p.pezzi})"></td>
+      <td class="n"><input type="number" step="0.01" style="width:92px" id="cc_${p.id}" value="${p.costoCart||""}"
+        placeholder="${r?r.costoCart.toFixed(2):""}" oninput="sincCosto('${p.id}','cart',${p.pezzi})"></td>
+      <td><input style="width:130px" id="cf_${p.id}" value="${esc(p.fornitore||"")}" list="l_fornitori"></td>
+    </tr>`}).join("")}
+    </tbody></table></div>${datalistFornitori()}
+  `,`<button class="bt leggero" onclick="chiudi()">Annulla</button><button class="bt pri" onclick="salvaCosti()">Salva tutti i costi</button>`);
+}
+function sincCosto(id,da,pezzi){
+  const pz=document.getElementById("cp_"+id), ct=document.getElementById("cc_"+id);
+  if(da==="pz") ct.value = pz.value? (Number(pz.value)*pezzi).toFixed(2):"";
+  else pz.value = ct.value? (Number(ct.value)/pezzi).toFixed(3):"";
+}
+async function salvaCosti(){
+  for(const p of S.prodotti){
+    const pz=document.getElementById("cp_"+p.id); if(!pz) continue;
+    const costoPz=Number(pz.value)||0, costoCart=Number(document.getElementById("cc_"+p.id).value)||0;
+    const forn=document.getElementById("cf_"+p.id).value;
+    if(costoPz===(p.costoPz||0)&&costoCart===(p.costoCart||0)&&forn===(p.fornitore||"")) continue;
+    await salva("prodotti",{...p,costoPz,costoCart,fornitore:forn});
+  }
+  chiudi();
+}
+
+/* ---- generatore catalogo: crea tutto in un colpo ---- */
+function apriGeneratore(){
+  const righe = CATALOGO.map(c=>`
+    <details class="matrice"><summary>${c.nome} <span class="pill">${c.linea}</span></summary>
+      <div style="display:flex;flex-wrap:wrap;gap:16px;margin-top:10px">
+        ${Object.keys(FORMATI).map(f=>`
+          <label class="spunta"><input type="checkbox" class="gen" data-s="${c.sigla}" data-f="${f}"> ${f}</label>
+          <input type="number" step="0.001" class="genc" data-s="${c.sigla}" data-f="${f}" placeholder="€/pz" style="width:82px;padding:5px;border:1px solid var(--linea);border-radius:5px">`).join("")}
+      </div></details>`).join("");
+  finestra("Generatore catalogo",`
+    <div class="avviso">Spunta i formati che vendi davvero e scrivi il costo d'acquisto per pezzo. Vengono creati i codici prodotto e, per ogni lingua scelta sotto, i codici etichetta collegati.</div>
+    <div class="campo"><label>Versioni di etichetta da generare</label>
+      <div style="display:flex;flex-wrap:wrap;gap:12px">${Object.entries(LINGUE).map(([k,v])=>
+        `<label class="spunta"><input type="checkbox" class="genl" value="${k}" checked> ${v}</label>`).join("")}</div></div>
+    <div class="campo"><label>Produttore</label><input id="g_forn" placeholder="Attianese" list="l_fornitori">${datalistFornitori()}</div>
+    ${righe}
+  `,`<button class="bt leggero" onclick="chiudi()">Annulla</button><button class="bt pri" onclick="generaCatalogo()">Genera catalogo</button>`);
+}
+async function generaCatalogo(){
+  const lingue=[...document.querySelectorAll(".genl:checked")].map(i=>i.value);
+  const forn=val("g_forn");
+  const scelti=[...document.querySelectorAll(".gen:checked")];
+  if(!scelti.length){ alert("Spunta almeno un formato."); return; }
+  for(const ch of scelti){
+    const sigla=ch.dataset.s, formato=ch.dataset.f, c=CATALOGO.find(x=>x.sigla===sigla), F=FORMATI[formato];
+    const codice=codiceProdotto(sigla,formato);
+    if(S.prodotti.some(p=>p.codice===codice)) continue;
+    const costoPz=Number(document.querySelector(`.genc[data-s="${sigla}"][data-f="${formato}"]`).value)||0;
+    const netto=(c.linea==="Verde"&&formato==="6x3000")?2600:F.nettoStd;
+    const id=await salva("prodotti",{sigla,formato,codice,nome:c.nome,en:c.en,linea:c.linea,
+      netto,pezzi:F.pezzi,kgCart:netto*F.pezzi/1000,cartoniPedana:F.cartoniPedana,
+      fornitore:forn,costoPz,costoCart:+(costoPz*F.pezzi).toFixed(2)});
+    for(const l of lingue) await salva("etichette",{prodottoId:id,codice:codiceEtichetta(codice,l),lingua:l,
+      mercato:l==="IT"?"Italia":"Export",fornitore:"",costoMille:0,scortaMin:0,formatoEtichetta:F.etichetta});
+  }
+  chiudi();
+}
+
+function disegnaProdotti(){
+  const q=(val("cercaProdotti")||"").toLowerCase(), fl=val("filtroLinea"), ff=val("filtroFormato");
+  const sel=document.getElementById("filtroFormato");
+  if(sel.options.length<2) sel.innerHTML=`<option value="">Tutti i formati</option>`+Object.keys(FORMATI).map(f=>`<option>${f}</option>`).join("");
+  const el=S.prodotti.filter(p=>(!fl||p.linea===fl)&&(!ff||p.formato===ff)&&
+    (!q||(p.codice+p.nome).toLowerCase().includes(q))).sort((a,b)=>a.codice.localeCompare(b.codice));
+  document.getElementById("contoProdotti").textContent=el.length+" codici";
+  document.getElementById("tbProdotti").innerHTML = el.length? el.map(p=>{
+    const et=S.etichette.filter(e=>e.prodottoId===p.id);
+    return `<tr>
+      <td><b>${p.codice}</b></td>
+      <td>${esc(p.nome)} <span class="tag ${p.linea==="Rossa"?"t-rossa":"t-verde"}">${p.linea}</span></td>
+      <td>${p.formato}</td><td class="n">${num(p.netto)} g</td><td class="n">${p.pezzi}</td>
+      <td class="n">${num(p.kgCart,2)}</td>
+      <td class="n">${p.costoCart?eur(p.costoCart):'<span class="tag t-attesa">da inserire</span>'}</td>
+      <td>${et.map(e=>`<span class="lingua" title="${e.codice}">${e.lingua}</span>`).join("")||'<span class="tag t-alert">nessuna</span>'}</td>
+      <td class="n">${num(giacenzaProdotto(p.id))}</td>
+      <td><button class="bt leggero micro" onclick="modificaProdotto('${p.id}')">Modifica</button>
+          <button class="bt leggero micro" onclick="eliminaProdotto('${p.id}')">Elimina</button></td>
+    </tr>`}).join("")
+    : `<tr><td colspan="10"><div class="vuoto"><b>Nessun prodotto ancora</b>Usa il generatore catalogo per creare in un colpo solo i codici e le etichette.</div></td></tr>`;
+}
+
+/* ============================ ETICHETTE ============================ */
+function formatoDi(e){ return e.formato || prod(e.prodottoId)?.formato || ""; }
+function nuovaEtichetta(e){
+  e=e||{};
+  const fmt=formatoDi(e);
+  const opzP=S.prodotti.map(p=>`<option value="${p.id}" ${e.prodottoId===p.id?"selected":""}>${p.codice} — ${esc(p.nome)} ${p.formato}</option>`).join("");
+  finestra(e.id?"Modifica etichetta":"Nuova etichetta",`
+    <div class="griglia g2">
+      <div class="campo"><label>Formato scatola</label>
+        <select id="e_fmt" onchange="antEtichetta()">${Object.keys(FORMATI).map(f=>`<option ${fmt===f?"selected":""}>${f}</option>`).join("")}</select>
+        <div class="aiuto">È il formato che decide la misura dell'etichetta.</div></div>
+      <div class="campo"><label>Prodotto collegato (facoltativo)</label>
+        <select id="e_prod" onchange="antEtichetta()"><option value="">— nessuno: etichetta a magazzino —</option>${opzP}</select>
+        <div class="aiuto">Lasciala libera se la fai stampare e la usi su più commesse.</div></div>
+    </div>
+    <div class="griglia g3">
+      <div class="campo"><label>Versione</label><select id="e_lingua" onchange="antEtichetta()">${Object.entries(LINGUE).map(([k,v])=>`<option value="${k}" ${e.lingua===k?"selected":""}>${v}</option>`).join("")}</select></div>
+      <div class="campo"><label>Mercato</label><input id="e_mercato" value="${esc(e.mercato||"")}" placeholder="Italia, USA, Emirati…"></div>
+      <div class="campo"><label>Codice etichetta</label><input id="e_codice" value="${esc(e.codice||"")}" placeholder="si compila da solo"></div>
+    </div>
+    <div class="campo"><label>Misura etichetta</label><input id="e_formatoEt" value="${esc(e.formatoEtichetta||"")}"></div>
+    <div class="griglia g3">
+      <div class="campo"><label>Fornitore etichette</label><input id="e_forn" value="${esc(e.fornitore||"")}" list="l_fornitori"></div>
+      <div class="campo"><label>Costo per 1000 pezzi (€)</label><input id="e_costo" type="number" step="0.01" value="${e.costoMille||""}"></div>
+      <div class="campo"><label>Scorta minima (pezzi)</label><input id="e_scorta" type="number" value="${e.scortaMin||""}"></div>
+    </div>
+    ${datalistFornitori()}
+    <div class="campo"><label>Note (codice a barre, revisione grafica…)</label><input id="e_note" value="${esc(e.note||"")}"></div>
+    <div class="avviso" id="antE"></div>
+  `,`<button class="bt leggero" onclick="chiudi()">Annulla</button><button class="bt pri" onclick="salvaEtichetta('${e.id||""}')">Salva etichetta</button>`);
+  antEtichetta();
+}
+function antEtichetta(){
+  const p=prod(val("e_prod")), fmt=p?p.formato:val("e_fmt"), lin=val("e_lingua");
+  const sel=document.getElementById("e_fmt");
+  if(p&&sel.value!==p.formato) sel.value=p.formato;
+  const cod = p ? codiceEtichetta(p.codice,lin) : `ET-${FORMATI[fmt].sigla}-${lin}`;
+  const ci=document.getElementById("e_codice");
+  if(!ci.value||ci.dataset.auto!=="0") ci.value=cod;
+  const f=document.getElementById("e_formatoEt"); if(!f.value) f.value=FORMATI[fmt].etichetta;
+  document.getElementById("antE").innerHTML= p
+    ? `Codice <b>${cod}</b>, legata al prodotto ${p.codice} (formato ${fmt}).`
+    : `Codice <b>${cod}</b>: etichetta di magazzino per il formato ${fmt}. La puoi usare su qualunque commessa di questo formato, e quello che avanza resta disponibile.`;
+}
+async function salvaEtichetta(id){
+  const p=prod(val("e_prod")), fmt=p?p.formato:val("e_fmt");
+  let cod=val("e_codice").trim();
+  if(!cod) cod = p? codiceEtichetta(p.codice,val("e_lingua")) : `ET-${FORMATI[fmt].sigla}-${val("e_lingua")}`;
+  if(S.etichette.some(e=>e.codice===cod&&e.id!==id)){ alert("Esiste già un'etichetta con il codice "+cod+". Cambia il codice."); return; }
+  await salva("etichette",{id:id||undefined,prodottoId:p?p.id:"",formato:fmt,lingua:val("e_lingua"),
+    codice:cod,mercato:val("e_mercato"),
+    formatoEtichetta:val("e_formatoEt"),fornitore:val("e_forn"),costoMille:numv("e_costo"),
+    scortaMin:numv("e_scorta"),note:val("e_note")});
+  chiudi();
+}
+function disegnaEtichette(){
+  const q=(val("cercaEtichette")||"").toLowerCase(), fl=val("filtroLingua");
+  const sel=document.getElementById("filtroLingua");
+  if(sel.options.length<2) sel.innerHTML=`<option value="">Tutte le versioni</option>`+Object.entries(LINGUE).map(([k,v])=>`<option value="${k}">${v}</option>`).join("");
+  const solo=document.getElementById("soloSottoScorta").checked;
+  let el=S.etichette.map(e=>({...e,...movEtichetta(e.id),p:prod(e.prodottoId)}))
+    .filter(e=>(!fl||e.lingua===fl)&&(!solo||e.g<=(e.scortaMin||0))&&
+      (!q||(e.codice+" "+(e.p?e.p.nome:"")+" "+LINGUE[e.lingua]).toLowerCase().includes(q)))
+    .sort((a,b)=>a.codice.localeCompare(b.codice));
+  document.getElementById("contoEtichette").textContent=el.length+" etichette";
+  document.getElementById("tbEtichette").innerHTML = el.length? el.map(e=>`<tr>
+    <td><b>${e.codice}</b></td><td>${e.p?esc(e.p.nome):'<span class="tag t-bozza">a magazzino</span>'}</td>
+    <td>${formatoDi(e)}</td><td>${LINGUE[e.lingua]||e.lingua}</td><td>${esc(e.mercato||"")}</td>
+    <td>${esc(e.fornitore||"—")}</td><td class="n">${e.costoMille?eur(e.costoMille):"—"}</td>
+    <td class="n">${num(e.entrate)}</td><td class="n">${num(e.uscite)}</td>
+    <td class="n"><b>${num(e.g)}</b></td><td class="n">${num(e.scortaMin)}</td>
+    <td>${e.g<=0?'<span class="tag t-alert">esaurita</span>':(e.g<=(e.scortaMin||0)?'<span class="tag t-attesa">sotto scorta</span>':'<span class="tag t-att">ok</span>')}</td>
+    <td><button class="bt leggero micro" onclick="nuovaEtichetta(etic('${e.id}'))">Modifica</button>
+        <button class="bt leggero micro" onclick="caricaEtichette('${e.id}')">Carico</button>
+        <button class="bt leggero micro" onclick="cancella('etichette','${e.id}')">Elimina</button></td></tr>`).join("")
+    : `<tr><td colspan="13"><div class="vuoto"><b>Nessuna etichetta</b>Creane una qui: puoi collegarla a un prodotto oppure tenerla come scorta di formato.</div></td></tr>`;
+}
+
+/* ============================ COMMESSE ============================ */
+let righeC=[];
+function nuovaCommessa(c){
+  righeC = c? JSON.parse(JSON.stringify(c.righe||[])) : [{prodottoId:"",etichettaId:"",cartoni:0}];
+  const forn=[...new Set([...S.prodotti.map(p=>p.fornitore),...S.anagrafiche.filter(a=>a.tipo!=="Cliente").map(a=>a.nome)])].filter(Boolean);
+  finestra(c?.id?"Commessa "+c.numero:"Nuova commessa",`
+    <div class="griglia g3">
+      <div class="campo"><label>Numero</label><input id="c_num" value="${esc(c?.numero||prossimoNumero("commesse","CP"))}"></div>
+      <div class="campo"><label>Data</label><input id="c_data" type="date" value="${c?.data||oggi()}"></div>
+      <div class="campo"><label>Produttore</label><input id="c_forn" value="${esc(c?.fornitore||"")}" list="l_forn2"><datalist id="l_forn2">${forn.map(f=>`<option>${esc(f)}</option>`).join("")}</datalist></div>
+    </div>
+    <div id="righeCommessa"></div>
+    <button class="bt leggero micro" onclick="aggiungiRigaC()">+ Aggiungi riga</button>
+    <div class="campo" style="margin-top:12px"><label>Note</label><input id="c_note" value="${esc(c?.note||"")}"></div>
+    <div id="verificaEtichette"></div>
+  `,`<button class="bt leggero" onclick="chiudi()">Annulla</button>
+     <button class="bt" onclick="salvaCommessa('${c?.id||""}','Bozza')">Salva come bozza</button>
+     <button class="bt pri" onclick="salvaCommessa('${c?.id||""}','Prodotta')">Conferma produzione</button>`);
+  disegnaRigheC();
+}
+function prossimoNumero(coll,pref){
+  const anno=new Date().getFullYear();
+  const n=S[coll].filter(x=>(x.numero||"").includes("/"+anno)).length+1;
+  return `${pref}${String(n).padStart(3,"0")}/${anno}`;
+}
+function aggiungiRigaC(){ righeC.push({prodottoId:"",etichettaId:"",cartoni:0}); disegnaRigheC(); }
+function togliRigaC(i){ righeC.splice(i,1); disegnaRigheC(); }
+function aggiornaRigaC(i,campo,v){
+  righeC[i][campo]= campo==="cartoni"? Number(v)||0 : v;
+  if(campo==="prodottoId") righeC[i].etichettaId="";
+  disegnaRigheC();
+}
+function disegnaRigheC(){
+  document.getElementById("righeCommessa").innerHTML = righeC.map((r,i)=>{
+    const p=prod(r.prodottoId);
+    const ets=S.etichette.filter(e=>e.prodottoId===r.prodottoId||(p&&!e.prodottoId&&formatoDi(e)===p.formato));
+    return `<div class="riga-doc">
+      <select onchange="aggiornaRigaC(${i},'prodottoId',this.value)">
+        <option value="">— prodotto —</option>
+        ${S.prodotti.map(p=>`<option value="${p.id}" ${r.prodottoId===p.id?"selected":""}>${p.codice} ${esc(p.nome)} ${p.formato}</option>`).join("")}
+      </select>
+      <select onchange="aggiornaRigaC(${i},'etichettaId',this.value)">
+        <option value="">— etichetta —</option>
+        ${ets.map(e=>`<option value="${e.id}" ${r.etichettaId===e.id?"selected":""}>${LINGUE[e.lingua]} · disp. ${num(giacenzaEtichetta(e.id))}</option>`).join("")}
+      </select>
+      <input type="number" placeholder="cartoni" value="${r.cartoni||""}" onchange="aggiornaRigaC(${i},'cartoni',this.value)">
+      <span class="n" style="text-align:right;color:var(--tenue)">${p?num(r.cartoni*p.pezzi)+" et.":""}</span>
+      <button class="elimina" onclick="togliRigaC(${i})">&times;</button>
+    </div>`}).join("");
+  verificaEtichette();
+}
+function verificaEtichette(){
+  const box=document.getElementById("verificaEtichette"); if(!box) return;
+  const mancanti=[];
+  righeC.forEach(r=>{
+    const p=prod(r.prodottoId), e=etic(r.etichettaId);
+    if(!p||!e||!r.cartoni) return;
+    const serve=r.cartoni*p.pezzi, ho=giacenzaEtichetta(e.id);
+    if(ho<serve) mancanti.push(`${e.codice}: servono ${num(serve)}, in magazzino ${num(ho)} (mancano ${num(serve-ho)})`);
+  });
+  box.innerHTML = mancanti.length
+    ? `<div class="avviso grave"><b>Etichette insufficienti</b><br>${mancanti.join("<br>")}<br>Puoi confermare lo stesso: la giacenza andrà in negativo e resterà segnalata.</div>`
+    : (righeC.some(r=>r.etichettaId) ? `<div class="avviso ok">Etichette sufficienti per tutta la commessa.</div>`:"");
+}
+async function salvaCommessa(id,stato){
+  const righe=righeC.filter(r=>r.prodottoId&&r.cartoni>0);
+  if(!righe.length){ alert("Serve almeno una riga con prodotto e cartoni."); return; }
+  const costo=righe.reduce((s,r)=>s+(prod(r.prodottoId)?.costoCart||0)*r.cartoni,0);
+  const c={id:id||undefined,numero:val("c_num"),data:val("c_data"),fornitore:val("c_forn"),
+    note:val("c_note"),righe,stato,costo};
+  const cid=await salva("commesse",c);
+  await cancellaMovimentiDi("commessa:"+cid);
+  if(stato==="Prodotta"){
+    for(const r of righe){
+      const p=prod(r.prodottoId);
+      await movimento("P",r.prodottoId,r.cartoni,"Produzione "+c.numero,"commessa:"+cid,c.data);
+      if(r.etichettaId) await movimento("E",r.etichettaId,-(r.cartoni*p.pezzi),"Consumo commessa "+c.numero,"commessa:"+cid,c.data);
+    }
+  }
+  chiudi();
+}
+function disegnaCommesse(){
+  const f=val("filtroStatoCommessa");
+  const el=S.commesse.filter(c=>!f||c.stato===f).sort((a,b)=>(b.data||"").localeCompare(a.data||""));
+  document.getElementById("tbCommesse").innerHTML= el.length? el.map(c=>{
+    const cart=(c.righe||[]).reduce((s,r)=>s+r.cartoni,0);
+    const et=(c.righe||[]).reduce((s,r)=>s+r.cartoni*(prod(r.prodottoId)?.pezzi||0),0);
+    return `<tr><td><b>${esc(c.numero)}</b></td><td>${dataIt(c.data)}</td><td>${esc(c.fornitore||"")}</td>
+      <td>${(c.righe||[]).length}</td><td class="n">${num(cart)}</td><td class="n">${num(et)}</td>
+      <td class="n">${eur(c.costo)}</td>
+      <td><span class="tag ${c.stato==="Prodotta"?"t-att":"t-bozza"}">${c.stato}</span></td>
+      <td><button class="bt leggero micro" onclick="nuovaCommessa(S.commesse.find(x=>x.id==='${c.id}'))">Apri</button>
+          <button class="bt leggero micro" onclick="eliminaCommessa('${c.id}')">Elimina</button></td></tr>`}).join("")
+    : `<tr><td colspan="9"><div class="vuoto"><b>Nessuna commessa</b>Apri una commessa quando mandi in produzione un lotto.</div></td></tr>`;
+}
+async function eliminaCommessa(id){
+  if(!confirm("Elimino la commessa e i movimenti di magazzino collegati?")) return;
+  await cancellaMovimentiDi("commessa:"+id); await cancella("commesse",id);
+}
+
+/* ============================ VENDITE ============================ */
+let righeV=[];
+function nuovaVendita(v){
+  righeV = v? JSON.parse(JSON.stringify(v.righe||[])) : [{prodottoId:"",cartoni:0,prezzo:0}];
+  const cli=S.anagrafiche.filter(a=>a.tipo!=="Fornitore");
+  finestra(v?.id?"Ordine "+v.numero:"Nuovo ordine cliente",`
+    <div class="griglia g4">
+      <div class="campo"><label>Numero</label><input id="v_num" value="${esc(v?.numero||prossimoNumero("vendite","OC"))}"></div>
+      <div class="campo"><label>Data</label><input id="v_data" type="date" value="${v?.data||oggi()}" onchange="antScadenze()"></div>
+      <div class="campo"><label>Cliente</label><input id="v_cli" value="${esc(v?.cliente||"")}" list="l_cli"><datalist id="l_cli">${cli.map(c=>`<option>${esc(c.nome)}</option>`).join("")}</datalist></div>
+      <div class="campo"><label>Mercato</label><input id="v_mercato" value="${esc(v?.mercato||"Italia")}"></div>
+    </div>
+    <div id="righeVendita"></div>
+    <button class="bt leggero micro" onclick="aggiungiRigaV()">+ Aggiungi riga</button>
+    <div class="griglia g3" style="margin-top:12px">
+      <div class="campo"><label>Acconto alla conferma (%)</label><input id="v_acconto" type="number" value="${v?.accontoPerc??25}" onchange="antScadenze()"></div>
+      <div class="campo"><label>Giorni per il saldo dalla data</label><input id="v_giorni" type="number" value="${v?.giorniSaldo??30}" onchange="antScadenze()"></div>
+      <div class="campo"><label>Trasporto addebitato (€)</label><input id="v_trasp" type="number" step="0.01" value="${v?.trasporto||0}" onchange="disegnaRigheV()"></div>
+    </div>
+    <div id="totaliVendita"></div>
+  `,`<button class="bt leggero" onclick="chiudi()">Annulla</button>
+     <button class="bt" onclick="salvaVendita('${v?.id||""}','Bozza')">Salva come bozza</button>
+     <button class="bt pri" onclick="salvaVendita('${v?.id||""}','Confermato')">Conferma e scarica magazzino</button>`);
+  disegnaRigheV();
+}
+function aggiungiRigaV(){ righeV.push({prodottoId:"",cartoni:0,prezzo:0}); disegnaRigheV(); }
+function togliRigaV(i){ righeV.splice(i,1); disegnaRigheV(); }
+function aggiornaRigaV(i,campo,v){
+  righeV[i][campo]= campo==="prodottoId"? v : Number(v)||0;
+  if(campo==="prodottoId"){
+    const p=prod(v); const ric=Number(val("ricarico"))||0.20;
+    if(p&&!righeV[i].prezzo) righeV[i].prezzo=+(p.costoCart*(1+ric)).toFixed(2);
+  }
+  disegnaRigheV();
+}
+function disegnaRigheV(){
+  document.getElementById("righeVendita").innerHTML = righeV.map((r,i)=>{
+    const p=prod(r.prodottoId), g=p?giacenzaProdotto(p.id):0;
+    return `<div class="riga-doc">
+      <select onchange="aggiornaRigaV(${i},'prodottoId',this.value)">
+        <option value="">— prodotto —</option>
+        ${S.prodotti.map(p=>`<option value="${p.id}" ${r.prodottoId===p.id?"selected":""}>${p.codice} ${esc(p.nome)} ${p.formato}</option>`).join("")}
+      </select>
+      <input type="number" placeholder="cartoni" value="${r.cartoni||""}" onchange="aggiornaRigaV(${i},'cartoni',this.value)">
+      <input type="number" step="0.01" placeholder="€/cartone" value="${r.prezzo||""}" onchange="aggiornaRigaV(${i},'prezzo',this.value)">
+      <span class="n" style="text-align:right;color:${p&&r.cartoni>g?'var(--pomodoro)':'var(--tenue)'}">${p?"disp. "+num(g):""}</span>
+      <button class="elimina" onclick="togliRigaV(${i})">&times;</button>
+    </div>`}).join("");
+  const tot=righeV.reduce((s,r)=>s+r.cartoni*r.prezzo,0)+numv("v_trasp");
+  const costo=righeV.reduce((s,r)=>s+r.cartoni*(prod(r.prodottoId)?.costoCart||0),0);
+  const cart=righeV.reduce((s,r)=>s+r.cartoni,0);
+  document.getElementById("totaliVendita").innerHTML=`<div class="avviso">
+    <b>${num(cart)} cartoni</b> · imponibile <b>${eur(tot)}</b> · costo ${eur(costo)} ·
+    margine <b>${eur(tot-costo)}</b> (${tot?num((tot-costo)/tot*100,1):0}%)</div>`;
+  antScadenze();
+}
+function antScadenze(){}
+async function salvaVendita(id,stato){
+  const righe=righeV.filter(r=>r.prodottoId&&r.cartoni>0);
+  if(!righe.length){ alert("Serve almeno una riga."); return; }
+  const trasporto=numv("v_trasp");
+  const imponibile=righe.reduce((s,r)=>s+r.cartoni*r.prezzo,0)+trasporto;
+  const costo=righe.reduce((s,r)=>s+r.cartoni*(prod(r.prodottoId)?.costoCart||0),0);
+  const v={id:id||undefined,numero:val("v_num"),data:val("v_data"),cliente:val("v_cli"),
+    mercato:val("v_mercato"),righe,trasporto,imponibile,costo,stato,
+    accontoPerc:numv("v_acconto"),giorniSaldo:numv("v_giorni")};
+  const vid=await salva("vendite",v);
+  await cancellaMovimentiDi("vendita:"+vid);
+  for(const c of S.cassa.filter(x=>x.rif==="vendita:"+vid)) await cancella("cassa",c.id);
+  if(stato!=="Bozza"){
+    for(const r of righe) await movimento("P",r.prodottoId,-r.cartoni,"Vendita "+v.numero+" "+v.cliente,"vendita:"+vid,v.data);
+    const acc=imponibile*(v.accontoPerc/100);
+    if(acc>0) await salva("cassa",{data:v.data,tipo:"Incasso",descrizione:`Acconto ${v.accontoPerc}% ordine ${v.numero} — ${v.cliente}`,importo:acc,stato:"Previsto",rif:"vendita:"+vid});
+    if(imponibile-acc>0) await salva("cassa",{data:addGiorni(v.data,v.giorniSaldo),tipo:"Incasso",descrizione:`Saldo ordine ${v.numero} — ${v.cliente}`,importo:imponibile-acc,stato:"Previsto",rif:"vendita:"+vid});
+  }
+  chiudi();
+}
+function disegnaVendite(){
+  const f=val("filtroStatoVendita"), q=(val("cercaVendite")||"").toLowerCase();
+  const el=S.vendite.filter(v=>(!f||v.stato===f)&&(!q||(v.cliente||"").toLowerCase().includes(q)))
+    .sort((a,b)=>(b.data||"").localeCompare(a.data||""));
+  document.getElementById("tbVendite").innerHTML= el.length? el.map(v=>{
+    const cart=(v.righe||[]).reduce((s,r)=>s+r.cartoni,0);
+    const mov=S.cassa.filter(c=>c.rif==="vendita:"+v.id);
+    const inc=mov.filter(c=>c.stato==="Fatto").reduce((s,c)=>s+c.importo,0);
+    const perc=v.imponibile?Math.round(inc/v.imponibile*100):0;
+    return `<tr><td><b>${esc(v.numero)}</b></td><td>${dataIt(v.data)}</td><td>${esc(v.cliente||"")}</td>
+      <td>${esc(v.mercato||"")}</td><td class="n">${num(cart)}</td><td class="n">${eur(v.imponibile)}</td>
+      <td class="n">${eur(v.costo)}</td><td class="n">${eur(v.imponibile-v.costo)}</td>
+      <td><span class="tag ${v.stato==="Bozza"?"t-bozza":"t-att"}">${v.stato}</span></td>
+      <td><span class="tag ${perc>=100?"t-att":(perc>0?"t-attesa":"t-alert")}">${perc}%</span></td>
+      <td><button class="bt leggero micro" onclick="nuovaVendita(S.vendite.find(x=>x.id==='${v.id}'))">Apri</button>
+          <button class="bt leggero micro" onclick="eliminaVendita('${v.id}')">Elimina</button></td></tr>`}).join("")
+    : `<tr><td colspan="11"><div class="vuoto"><b>Nessun ordine</b>Il primo ordine cliente crea anche le scadenze di incasso.</div></td></tr>`;
+}
+async function eliminaVendita(id){
+  if(!confirm("Elimino l'ordine, i movimenti di magazzino e le scadenze collegate?")) return;
+  await cancellaMovimentiDi("vendita:"+id);
+  for(const c of S.cassa.filter(x=>x.rif==="vendita:"+id)) await cancella("cassa",c.id);
+  await cancella("vendite",id);
+}
+
+/* ============================ ACQUISTI ============================ */
+function nuovoAcquisto(a){
+  a=a||{};
+  finestra(a.id?"Modifica acquisto":"Nuovo acquisto",`
+    <div class="griglia g3">
+      <div class="campo"><label>Data</label><input id="a_data" type="date" value="${a.data||oggi()}"></div>
+      <div class="campo"><label>Fornitore</label><input id="a_forn" value="${esc(a.fornitore||"")}" list="l_fornitori">${datalistFornitori()}</div>
+      <div class="campo"><label>Categoria</label><select id="a_cat" onchange="mostraBloccoEtichette()">${CATEGORIE_COSTO.map(c=>`<option ${a.categoria===c?"selected":""}>${c}</option>`).join("")}</select></div>
+    </div>
+    <div class="griglia g3">
+      <div class="campo"><label>Documento</label><input id="a_doc" value="${esc(a.documento||"")}" placeholder="Fattura n."></div>
+      <div class="campo"><label>Imponibile (€)</label><input id="a_imp" type="number" step="0.01" value="${a.imponibile||""}"></div>
+      <div class="campo"><label>Scadenza pagamento</label><input id="a_scad" type="date" value="${a.scadenza||oggi()}"></div>
+    </div>
+    <div class="campo"><label>Dettaglio</label><input id="a_desc" value="${esc(a.descrizione||"")}"></div>
+    <div class="campo"><label>Fattura o DDT da conservare (PDF o foto)</label><input type="file" id="a_file" accept="image/*,application/pdf">
+      ${a.id?`<div class="aiuto">Documenti già allegati: ${clip("acquisto:"+a.id)||"nessuno"}</div>`:""}</div>
+    <div id="bloccoEtichette"></div>
+    <div class="campo"><label>Stato</label><select id="a_stato"><option ${a.stato==="Da pagare"?"selected":""}>Da pagare</option><option ${a.stato==="Pagato"?"selected":""}>Pagato</option></select></div>
+  `,`<button class="bt leggero" onclick="chiudi()">Annulla</button><button class="bt pri" onclick="salvaAcquisto('${a.id||""}')">Salva acquisto</button>`);
+  mostraBloccoEtichette(a);
+}
+function mostraBloccoEtichette(a){
+  const box=document.getElementById("bloccoEtichette");
+  if(val("a_cat")!=="Etichette"){ box.innerHTML=""; return; }
+  box.innerHTML=`<div class="avviso">Questo acquisto carica il magazzino etichette.</div>
+    <div class="griglia g2">
+      <div class="campo"><label>Etichetta</label><select id="a_et"><option value="">— scegli —</option>
+        ${S.etichette.map(e=>`<option value="${e.id}" ${a?.etichettaId===e.id?"selected":""}>${e.codice}</option>`).join("")}</select></div>
+      <div class="campo"><label>Quantità (pezzi)</label><input id="a_qta" type="number" value="${a?.qta||""}"></div>
+    </div>`;
+}
+async function salvaAcquisto(id){
+  const a={id:id||undefined,data:val("a_data"),fornitore:val("a_forn"),categoria:val("a_cat"),
+    documento:val("a_doc"),imponibile:numv("a_imp"),scadenza:val("a_scad"),
+    descrizione:val("a_desc"),stato:val("a_stato"),
+    etichettaId:val("a_et")||"",qta:numv("a_qta")};
+  const aid=await salva("acquisti",a);
+  await allegaDa("a_file","acquisto:"+aid,`${a.categoria} ${a.documento||""}`.trim());
+  await cancellaMovimentiDi("acquisto:"+aid);
+  for(const c of S.cassa.filter(x=>x.rif==="acquisto:"+aid)) await cancella("cassa",c.id);
+  if(a.categoria==="Etichette"&&a.etichettaId&&a.qta>0)
+    await movimento("E",a.etichettaId,a.qta,"Acquisto "+(a.documento||a.fornitore),"acquisto:"+aid,a.data);
+  if(a.imponibile>0) await salva("cassa",{data:a.scadenza,tipo:"Pagamento",
+    descrizione:`${a.categoria} — ${a.fornitore} ${a.documento||""}`.trim(),importo:-a.imponibile,
+    stato:a.stato==="Pagato"?"Fatto":"Previsto",rif:"acquisto:"+aid});
+  chiudi();
+}
+function disegnaAcquisti(){
+  const sel=document.getElementById("filtroCatAcquisto");
+  if(sel.options.length<2) sel.innerHTML=`<option value="">Tutte le categorie</option>`+CATEGORIE_COSTO.map(c=>`<option>${c}</option>`).join("");
+  const f=val("filtroCatAcquisto");
+  const el=S.acquisti.filter(a=>!f||a.categoria===f).sort((a,b)=>(b.data||"").localeCompare(a.data||""));
+  document.getElementById("tbAcquisti").innerHTML= el.length? el.map(a=>`<tr>
+    <td>${dataIt(a.data)}</td><td>${esc(a.fornitore||"")}</td><td>${esc(a.categoria||"")}</td>
+    <td>${esc(a.documento||"")} ${clip("acquisto:"+a.id)}${a.movimentoId?clip("mov:"+a.movimentoId):""}</td><td>${esc(a.descrizione||"")}${a.etichettaId?` <span class="pill">${esc(etic(a.etichettaId)?.codice||"")} ×${num(a.qta)}</span>`:""}</td>
+    <td class="n">${eur(a.imponibile)}</td><td>${dataIt(a.scadenza)}</td>
+    <td><span class="tag ${a.stato==="Pagato"?"t-att":"t-attesa"}">${a.stato}</span></td>
+    <td><button class="bt leggero micro" onclick="nuovoAcquisto(S.acquisti.find(x=>x.id==='${a.id}'))">Apri</button>
+        <button class="bt leggero micro" onclick="eliminaAcquisto('${a.id}')">Elimina</button></td></tr>`).join("")
+    : `<tr><td colspan="9"><div class="vuoto"><b>Nessun acquisto registrato</b>Registra qui fatture fornitore, etichette, trasporti e costi generali.</div></td></tr>`;
+}
+async function eliminaAcquisto(id){
+  if(!confirm("Elimino l'acquisto e i collegamenti a magazzino e cassa?")) return;
+  await cancellaMovimentiDi("acquisto:"+id);
+  await eliminaAllegatiDi("acquisto:"+id);
+  for(const c of S.cassa.filter(x=>x.rif==="acquisto:"+id)) await cancella("cassa",c.id);
+  await cancella("acquisti",id);
+}
+
+/* ============================ MAGAZZINO ============================ */
+function nuovaRettifica(){
+  finestra("Rettifica giacenza",`
+    <div class="campo"><label>Tipo di articolo</label>
+      <select id="r_tipo" onchange="disegnaSceltaArticolo()"><option value="P">Prodotto finito</option><option value="E">Etichette</option></select></div>
+    <div class="campo" id="sceltaArticolo"></div>
+    <div class="griglia g2">
+      <div class="campo"><label>Quantità (negativa per scaricare)</label><input id="r_qta" type="number"></div>
+      <div class="campo"><label>Data</label><input id="r_data" type="date" value="${oggi()}"></div>
+    </div>
+    <div class="campo"><label>Causale</label><input id="r_causale" placeholder="Inventario, rottura, omaggio…"></div>
+  `,`<button class="bt leggero" onclick="chiudi()">Annulla</button><button class="bt pri" onclick="salvaRettifica()">Registra rettifica</button>`);
+  disegnaSceltaArticolo();
+}
+function disegnaSceltaArticolo(){
+  const t=val("r_tipo");
+  document.getElementById("sceltaArticolo").innerHTML=`<label>Articolo</label><select id="r_art">
+    ${(t==="P"?S.prodotti:S.etichette).map(x=>`<option value="${x.id}">${x.codice}${t==="P"?" — "+esc(x.nome):""}</option>`).join("")}</select>`;
+}
+async function salvaRettifica(){
+  await movimento(val("r_tipo"),val("r_art"),numv("r_qta"),val("r_causale")||"Rettifica","",val("r_data"));
+  chiudi();
+}
+function disegnaMagazzino(){
+  const pr=S.prodotti.map(p=>({...p,g:giacenzaProdotto(p.id)})).sort((a,b)=>a.codice.localeCompare(b.codice));
+  const valP=pr.reduce((s,p)=>s+p.g*(p.costoCart||0),0);
+  const pedaneTot=pr.reduce((s,p)=>s+(p.cartoniPedana?p.g/p.cartoniPedana:0),0);
+  const kgTot=pr.reduce((s,p)=>s+p.g*(p.kgCart||0),0);
+  document.getElementById("magProdotti").innerHTML=`
+    <div class="avviso">${num(pedaneTot,1)} pedane equivalenti · ${num(kgTot)} kg netti · riempimento motrice da 12 pedane: <b>${num(Math.min(pedaneTot/12*100,999),0)}%</b></div>
+    <div class="tabella-wrap"><table><thead><tr><th>Codice</th><th>Prodotto</th><th class="n">Cartoni</th><th class="n">Pedane</th><th class="n">Kg netti</th><th class="n">Valore</th></tr></thead>
+    <tbody>${pr.map(p=>{const ped=p.cartoniPedana?Math.floor(p.g/p.cartoniPedana):0;
+      const resto=p.cartoniPedana?p.g-ped*p.cartoniPedana:0;
+      return `<tr><td>${p.codice}</td><td>${esc(p.nome)} <span class="pill">${p.formato}</span></td>
+      <td class="n" style="${p.g<0?"color:var(--pomodoro);font-weight:600":""}">${num(p.g)}</td>
+      <td class="n">${p.cartoniPedana?`${ped}${resto?` <span style="color:var(--tenue)">+${num(resto)} crt</span>`:""}`:"—"}</td>
+      <td class="n">${num(p.g*(p.kgCart||0))}</td><td class="n">${eur(p.g*(p.costoCart||0))}</td></tr>`}).join("")||
+      `<tr><td colspan="6"><div class="vuoto">Nessun prodotto</div></td></tr>`}</tbody>
+    <tfoot><tr><th colspan="5">Valore prodotto finito</th><th class="n">${eur(valP)}</th></tr></tfoot></table></div>`;
+  const et=S.etichette.map(e=>({...e,g:giacenzaEtichetta(e.id)})).sort((a,b)=>a.codice.localeCompare(b.codice));
+  const valE=et.reduce((s,e)=>s+e.g*((e.costoMille||0)/1000),0);
+  document.getElementById("magEtichette").innerHTML=`
+    <div class="tabella-wrap"><table><thead><tr><th>Codice</th><th>Lingua</th><th class="n">Pezzi</th><th class="n">Scorta</th><th class="n">Valore</th></tr></thead>
+    <tbody>${et.map(e=>`<tr><td>${e.codice}</td><td>${LINGUE[e.lingua]||e.lingua}</td>
+      <td class="n" style="${e.g<=(e.scortaMin||0)?"color:var(--pomodoro);font-weight:600":""}">${num(e.g)}</td>
+      <td class="n">${num(e.scortaMin)}</td><td class="n">${eur(e.g*((e.costoMille||0)/1000))}</td></tr>`).join("")||
+      `<tr><td colspan="5"><div class="vuoto">Nessuna etichetta</div></td></tr>`}</tbody>
+    <tfoot><tr><th colspan="4">Valore etichette</th><th class="n">${eur(valE)}</th></tr></tfoot></table></div>`;
+  const q=(val("cercaMov")||"").toLowerCase();
+  const mv=S.movimenti.map(m=>{
+    const a= m.tipoArt==="P"? prod(m.artId): etic(m.artId);
+    return {...m,cod:a?a.codice:"(eliminato)",nome:a&&a.nome?a.nome:""};
+  }).filter(m=>!q||(m.cod+m.causale).toLowerCase().includes(q))
+    .sort((a,b)=>(b.data||"").localeCompare(a.data||"")||(b.aggiornato||"").localeCompare(a.aggiornato||"")).slice(0,200);
+  document.getElementById("storicoMov").innerHTML=`<div class="tabella-wrap"><table>
+    <thead><tr><th>Data</th><th>Tipo</th><th>Articolo</th><th class="n">Quantità</th><th>Causale</th><th></th></tr></thead>
+    <tbody>${mv.map(m=>`<tr><td>${dataIt(m.data)}</td><td>${m.tipoArt==="P"?"Prodotto":"Etichetta"}</td>
+      <td>${m.cod} ${esc(m.nome)}</td>
+      <td class="n" style="color:${m.qta<0?"var(--pomodoro)":"var(--basilico)"};font-weight:600">${m.qta>0?"+":""}${num(m.qta)}</td>
+      <td>${esc(m.causale||"")} ${clip("mov:"+m.id)}</td>
+      <td>${m.rif?"":`<button class="bt leggero micro" onclick="cancella('movimenti','${m.id}')">Elimina</button>`}</td></tr>`).join("")||
+      `<tr><td colspan="6"><div class="vuoto">Nessun movimento</div></td></tr>`}</tbody></table></div>`;
+}
+function esportaMagazzino(){
+  const r=[["Tipo","Codice","Descrizione","Formato","Giacenza","Valore"]];
+  S.prodotti.forEach(p=>r.push(["Prodotto",p.codice,p.nome,p.formato,giacenzaProdotto(p.id),(giacenzaProdotto(p.id)*(p.costoCart||0)).toFixed(2)]));
+  S.etichette.forEach(e=>r.push(["Etichetta",e.codice,LINGUE[e.lingua]||e.lingua,prod(e.prodottoId)?.formato||"",giacenzaEtichetta(e.id),(giacenzaEtichetta(e.id)*((e.costoMille||0)/1000)).toFixed(2)]));
+  scaricaCsv(r,"magazzino_domus_food");
+}
+
+/* ============================ CASSA ============================ */
+function nuovoMovCassa(c){
+  c=c||{};
+  finestra(c.id?"Modifica movimento":"Movimento di cassa",`
+    <div class="griglia g3">
+      <div class="campo"><label>Data</label><input id="k_data" type="date" value="${c.data||oggi()}"></div>
+      <div class="campo"><label>Tipo</label><select id="k_tipo"><option ${c.tipo==="Incasso"?"selected":""}>Incasso</option><option ${c.tipo==="Pagamento"?"selected":""}>Pagamento</option></select></div>
+      <div class="campo"><label>Stato</label><select id="k_stato"><option ${c.stato==="Previsto"?"selected":""}>Previsto</option><option ${c.stato==="Fatto"?"selected":""}>Fatto</option></select></div>
+    </div>
+    <div class="griglia g2">
+      <div class="campo"><label>Descrizione</label><input id="k_desc" value="${esc(c.descrizione||"")}"></div>
+      <div class="campo"><label>Importo (€, senza segno)</label><input id="k_imp" type="number" step="0.01" value="${Math.abs(c.importo||0)||""}"></div>
+    </div>
+  `,`<button class="bt leggero" onclick="chiudi()">Annulla</button><button class="bt pri" onclick="salvaMovCassa('${c.id||""}')">Salva movimento</button>`);
+}
+async function salvaMovCassa(id){
+  const t=val("k_tipo"), imp=Math.abs(numv("k_imp"));
+  await salva("cassa",{id:id||undefined,data:val("k_data"),tipo:t,stato:val("k_stato"),
+    descrizione:val("k_desc"),importo:t==="Pagamento"?-imp:imp,rif:(S.cassa.find(x=>x.id===id)||{}).rif||""});
+  chiudi();
+}
+async function segnaFatto(id){
+  const c=S.cassa.find(x=>x.id===id); if(!c) return;
+  await salva("cassa",{...c,stato:c.stato==="Fatto"?"Previsto":"Fatto"});
+  if(c.rif&&c.rif.startsWith("acquisto:")){
+    const a=S.acquisti.find(x=>"acquisto:"+x.id===c.rif);
+    if(a) await salva("acquisti",{...a,stato:c.stato==="Fatto"?"Da pagare":"Pagato"});
+  }
+}
+function disegnaCassa(){
+  const gg=Number(val("filtroPeriodoCassa"))||30;
+  const fatti=S.cassa.filter(c=>c.stato==="Fatto");
+  const saldo=fatti.reduce((s,c)=>s+c.importo,0);
+  const entro=S.cassa.filter(c=>c.stato==="Previsto"&&giorniDa(c.data)<=gg);
+  const inc=entro.filter(c=>c.importo>0).reduce((s,c)=>s+c.importo,0);
+  const pag=entro.filter(c=>c.importo<0).reduce((s,c)=>s+c.importo,0);
+  const scaduti=S.cassa.filter(c=>c.stato==="Previsto"&&giorniDa(c.data)<0);
+  document.getElementById("kpiCassa").innerHTML=`
+    ${kpi("Saldo movimenti registrati",eur(saldo),"acciaio","Solo incassi e pagamenti segnati come fatti")}
+    ${kpi("Incassi attesi",eur(inc),"verde",`nei prossimi ${gg} giorni`)}
+    ${kpi("Pagamenti attesi",eur(Math.abs(pag)),"rosso",`nei prossimi ${gg} giorni`)}
+    ${kpi("Saldo previsto",eur(saldo+inc+pag),"oro",`tra ${gg} giorni, se tutti pagano`)}`;
+  const el=S.cassa.filter(c=>c.stato==="Fatto"||giorniDa(c.data)<=gg).sort((a,b)=>(a.data||"").localeCompare(b.data||""));
+  let prog=0;
+  document.getElementById("tabCassa").innerHTML=`
+    ${scaduti.length?`<div class="avviso grave"><b>${scaduti.length} scadenze già passate</b> per ${eur(Math.abs(scaduti.reduce((s,c)=>s+c.importo,0)))} complessivi.</div>`:""}
+    <div class="tabella-wrap"><table><thead><tr><th>Data</th><th>Descrizione</th><th>Tipo</th><th class="n">Importo</th><th class="n">Progressivo</th><th>Stato</th><th></th></tr></thead>
+    <tbody>${el.map(c=>{prog+=c.importo;const rit=c.stato==="Previsto"&&giorniDa(c.data)<0;
+      return `<tr><td>${dataIt(c.data)}${rit?' <span class="tag t-alert">scaduta</span>':""}</td>
+      <td>${esc(c.descrizione||"")}</td><td>${c.tipo}</td>
+      <td class="n" style="color:${c.importo<0?"var(--pomodoro)":"var(--basilico)"};font-weight:600">${eur(c.importo)}</td>
+      <td class="n">${eur(prog)}</td>
+      <td><span class="tag ${c.stato==="Fatto"?"t-att":"t-attesa"}">${c.stato}</span></td>
+      <td><button class="bt leggero micro" onclick="segnaFatto('${c.id}')">${c.stato==="Fatto"?"Riapri":"Segna fatto"}</button>
+          <button class="bt leggero micro" onclick="nuovoMovCassa(S.cassa.find(x=>x.id==='${c.id}'))">Apri</button>
+          <button class="bt leggero micro" onclick="cancella('cassa','${c.id}')">Elimina</button></td></tr>`}).join("")||
+      `<tr><td colspan="7"><div class="vuoto"><b>Nessun movimento</b>Le scadenze nascono dagli ordini e dagli acquisti.</div></td></tr>`}</tbody></table></div>`;
+}
+
+/* ============================ LISTINO ============================ */
+function disegnaListino(){
+  const ric=Number(val("ricarico"))||0.13;
+  const viaggio=numv("costoViaggio"), np=numv("nPedane");
+  const perPedana = np? viaggio/np : 0;
+  const en=val("listinoLingua")==="en";
+  const gruppi={Rossa:[],Verde:[]};
+  S.prodotti.forEach(p=>(gruppi[p.linea]||gruppi.Rossa).push(p));
+  const testa=en?["Code","Product","Format","Cost/case","EXW €/case","€/unit","€/kg","Cases/pallet","Freight €/case","Delivered €/case"]
+                :["Codice","Prodotto","Formato","Costo cart.","EXW €/cartone","€/scatola","€/kg","Cart./pedana","Trasp. €/cart.","Consegnato €/cart."];
+  const corpo=Object.entries(gruppi).map(([linea,arr])=>{
+    if(!arr.length) return "";
+    const tit=en?(linea==="Rossa"?"RED LINE — Tomato":"GREEN LINE — Legumes"):(linea==="Rossa"?"LINEA ROSSA — Pomodoro":"LINEA VERDE — Legumi");
+    return `<tr><th colspan="10" style="background:${linea==="Rossa"?"#fbe9e9":"#e7f0e7"};color:${linea==="Rossa"?"var(--pomodoro)":"var(--basilico)"}">${tit}</th></tr>`+
+      arr.sort((a,b)=>a.formato.localeCompare(b.formato)||a.nome.localeCompare(b.nome)).map(p=>{
+        const exw=(p.costoCart||0)*(1+ric);
+        const trCart=p.cartoniPedana?perPedana/p.cartoniPedana:0;
+        return `<tr><td>${p.codice}</td><td>${esc(en?(p.en||p.nome):p.nome)}${p.note?` <span class="pill" title="${esc(p.note)}">nota</span>`:""}</td><td>${p.formato}</td>
+          <td class="n">${eur(p.costoCart)}</td><td class="n"><b>${eur(exw)}</b></td>
+          <td class="n">${eur(exw/(p.pezzi||1))}</td><td class="n">${eur(p.kgCart?exw/p.kgCart:0)}</td>
+          <td class="n">${p.cartoniPedana?num(p.cartoniPedana):"—"}</td>
+          <td class="n">${trCart?eur(trCart):"—"}</td>
+          <td class="n"><b>${eur(exw+trCart)}</b></td></tr>`}).join("");
+  }).join("");
+  document.getElementById("tabListino").innerHTML=`<div class="tabella-wrap"><table>
+    <thead><tr>${testa.map((t,i)=>`<th class="${i>2?"n":""}">${t}</th>`).join("")}</tr></thead>
+    <tbody>${corpo||`<tr><td colspan="10"><div class="vuoto">Nessun prodotto a catalogo</div></td></tr>`}</tbody></table></div>
+    <p class="aiuto">Ricarico sul costo d'acquisto, prezzi EXW Napoli. Trasporto ${eur(viaggio)} su ${num(np)} pedane = <b>${eur(perPedana)}</b> a pedana, ripartito sui cartoni di ogni formato. La pedana della passata 12x700 è una stima da confermare.</p>`;
+}
+function esportaListino(){
+  const ric=Number(val("ricarico"))||0.13, viaggio=numv("costoViaggio"), np=numv("nPedane");
+  const perPedana=np?viaggio/np:0;
+  const r=[["Codice","Prodotto","Formato","Costo cartone","EXW cartone","EXW scatola","EXW kg","Cartoni pedana","Trasporto cartone","Consegnato cartone"]];
+  S.prodotti.forEach(p=>{const exw=(p.costoCart||0)*(1+ric);const t=p.cartoniPedana?perPedana/p.cartoniPedana:0;
+    r.push([p.codice,p.nome,p.formato,(p.costoCart||0).toFixed(2),exw.toFixed(2),(exw/(p.pezzi||1)).toFixed(3),
+      (p.kgCart?exw/p.kgCart:0).toFixed(3),p.cartoniPedana||"",t.toFixed(3),(exw+t).toFixed(2)]);});
+  scaricaCsv(r,"listino_domus_food");
+}
+function scaricaCsv(righe,nome){
+  const csv=righe.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(";")).join("\n");
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob(["\ufeff"+csv],{type:"text/csv;charset=utf-8"}));
+  a.download=nome+"_"+oggi()+".csv"; a.click();
+}
+
+/* ============================ ANAGRAFICHE ============================ */
+function nuovaAnagrafica(a){
+  a=a||{};
+  finestra(a.id?"Modifica nominativo":"Nuovo nominativo",`
+    <div class="griglia g2">
+      <div class="campo"><label>Nome</label><input id="n_nome" value="${esc(a.nome||"")}"></div>
+      <div class="campo"><label>Tipo</label><select id="n_tipo">${["Cliente","Fornitore","Produttore","Agente"].map(t=>`<option ${a.tipo===t?"selected":""}>${t}</option>`).join("")}</select></div>
+    </div>
+    <div class="griglia g3">
+      <div class="campo"><label>Paese</label><input id="n_paese" value="${esc(a.paese||"Italia")}"></div>
+      <div class="campo"><label>Mercato</label><input id="n_mercato" value="${esc(a.mercato||"")}" placeholder="Italia, USA, Emirati…"></div>
+      <div class="campo"><label>P.IVA / VAT</label><input id="n_piva" value="${esc(a.piva||"")}"></div>
+    </div>
+    <div class="griglia g2">
+      <div class="campo"><label>Referente</label><input id="n_ref" value="${esc(a.referente||"")}"></div>
+      <div class="campo"><label>Contatti</label><input id="n_cont" value="${esc(a.contatti||"")}"></div>
+    </div>
+    <div class="campo"><label>Note</label><input id="n_note" value="${esc(a.note||"")}"></div>
+  `,`<button class="bt leggero" onclick="chiudi()">Annulla</button><button class="bt pri" onclick="salvaAnagrafica('${a.id||""}')">Salva nominativo</button>`);
+}
+async function salvaAnagrafica(id){
+  await salva("anagrafiche",{id:id||undefined,nome:val("n_nome"),tipo:val("n_tipo"),paese:val("n_paese"),
+    mercato:val("n_mercato"),piva:val("n_piva"),referente:val("n_ref"),contatti:val("n_cont"),note:val("n_note")});
+  chiudi();
+}
+function disegnaAnagrafiche(){
+  const el=[...S.anagrafiche].sort((a,b)=>(a.nome||"").localeCompare(b.nome||""));
+  document.getElementById("tbAnagrafiche").innerHTML= el.length? el.map(a=>`<tr>
+    <td><b>${esc(a.nome)}</b></td><td>${esc(a.tipo)}</td><td>${esc(a.paese||"")}</td><td>${esc(a.mercato||"")}</td>
+    <td>${esc(a.piva||"")}</td><td>${esc(a.referente||"")}</td><td>${esc(a.contatti||"")}</td><td>${esc(a.note||"")}</td>
+    <td><button class="bt leggero micro" onclick="nuovaAnagrafica(S.anagrafiche.find(x=>x.id==='${a.id}'))">Apri</button>
+        <button class="bt leggero micro" onclick="cancella('anagrafiche','${a.id}')">Elimina</button></td></tr>`).join("")
+    : `<tr><td colspan="9"><div class="vuoto"><b>Nessun nominativo</b>Aggiungi clienti, produttori e fornitore etichette.</div></td></tr>`;
+}
+
+/* ============================ CRUSCOTTO ============================ */
+function kpi(et,v,cl,nota){ return `<div class="kpi ${cl||""}"><div class="etichetta">${et}</div><div class="valore num">${v}</div>${nota?`<div class="nota">${nota}</div>`:""}</div>`; }
+function disegnaCruscotto(){
+  const anno=new Date().getFullYear();
+  const vAnno=S.vendite.filter(v=>v.stato!=="Bozza"&&(v.data||"").startsWith(anno));
+  const fatt=vAnno.reduce((s,v)=>s+(v.imponibile||0),0);
+  const costo=vAnno.reduce((s,v)=>s+(v.costo||0),0);
+  const marg=fatt-costo;
+  const saldo=S.cassa.filter(c=>c.stato==="Fatto").reduce((s,c)=>s+c.importo,0);
+  const daInc=S.cassa.filter(c=>c.stato==="Previsto"&&c.importo>0).reduce((s,c)=>s+c.importo,0);
+  const valMag=S.prodotti.reduce((s,p)=>s+giacenzaProdotto(p.id)*(p.costoCart||0),0)
+    +S.etichette.reduce((s,e)=>s+giacenzaEtichetta(e.id)*((e.costoMille||0)/1000),0);
+  document.getElementById("kpi").innerHTML=
+    kpi(`Fatturato ${anno}`,eur(fatt),"rosso",`${vAnno.length} ordini · obiettivo 100–150k`)+
+    kpi("Margine maturato",eur(marg),"verde",fatt?num(marg/fatt*100,1)+"% sul venduto":"")+
+    kpi("Saldo cassa",eur(saldo),"acciaio",`${eur(daInc)} ancora da incassare`)+
+    kpi("Valore magazzino",eur(valMag),"oro","prodotto finito più etichette");
+
+  const sottoScorta=S.etichette.map(e=>({...e,g:giacenzaEtichetta(e.id)})).filter(e=>e.g<=(e.scortaMin||0)&&(e.scortaMin>0||e.g<0));
+  const negativi=S.prodotti.map(p=>({...p,g:giacenzaProdotto(p.id)})).filter(p=>p.g<0);
+  const scaduti=S.cassa.filter(c=>c.stato==="Previsto"&&giorniDa(c.data)<0);
+  const senzaEt=S.prodotti.filter(p=>!S.etichette.some(e=>e.prodottoId===p.id));
+  let a="";
+  if(sottoScorta.length) a+=`<div class="avviso grave"><b>Etichette da riordinare</b><br>${sottoScorta.map(e=>`${e.codice} — ${num(e.g)} pezzi`).join("<br>")}</div>`;
+  if(negativi.length) a+=`<div class="avviso grave"><b>Giacenze negative</b><br>${negativi.map(p=>`${p.codice} — ${num(p.g)} cartoni: manca un carico di produzione.`).join("<br>")}</div>`;
+  if(scaduti.length) a+=`<div class="avviso"><b>${scaduti.length} scadenze passate</b> per ${eur(Math.abs(scaduti.reduce((s,c)=>s+c.importo,0)))}. Le trovi nel giro cassa.</div>`;
+  if(senzaEt.length) a+=`<div class="avviso"><b>Prodotti senza etichetta collegata</b><br>${senzaEt.map(p=>p.codice).join(", ")}</div>`;
+  document.getElementById("allarmi").innerHTML=a;
+
+  const sc=S.cassa.filter(c=>c.stato==="Previsto").sort((a,b)=>(a.data||"").localeCompare(b.data||"")).slice(0,8);
+  document.getElementById("scadenze").innerHTML= sc.length?`<div class="tabella-wrap"><table>
+    <thead><tr><th>Data</th><th>Descrizione</th><th class="n">Importo</th></tr></thead><tbody>
+    ${sc.map(c=>`<tr><td>${dataIt(c.data)}</td><td>${esc(c.descrizione||"")}</td>
+      <td class="n" style="color:${c.importo<0?"var(--pomodoro)":"var(--basilico)"}">${eur(c.importo)}</td></tr>`).join("")}
+    </tbody></table></div>`:`<div class="vuoto">Nessuna scadenza aperta</div>`;
+
+  const mv=[...S.movimenti].sort((a,b)=>(b.data||"").localeCompare(a.data||"")).slice(0,8);
+  document.getElementById("ultimiMov").innerHTML= mv.length?`<div class="tabella-wrap"><table>
+    <thead><tr><th>Data</th><th>Articolo</th><th class="n">Quantità</th><th>Causale</th></tr></thead><tbody>
+    ${mv.map(m=>{const a=m.tipoArt==="P"?prod(m.artId):etic(m.artId);
+      return `<tr><td>${dataIt(m.data)}</td><td>${a?a.codice:"—"}</td>
+      <td class="n" style="color:${m.qta<0?"var(--pomodoro)":"var(--basilico)"}">${m.qta>0?"+":""}${num(m.qta)}</td>
+      <td>${esc(m.causale||"")}</td></tr>`}).join("")}</tbody></table></div>`:`<div class="vuoto">Nessun movimento</div>`;
+
+  const perProd={};
+  S.vendite.filter(v=>v.stato!=="Bozza"&&(v.data||"").startsWith(anno)).forEach(v=>(v.righe||[]).forEach(r=>{
+    const p=prod(r.prodottoId); if(!p) return;
+    perProd[p.codice]=perProd[p.codice]||{nome:p.nome,formato:p.formato,cart:0,ric:0,cos:0};
+    perProd[p.codice].cart+=r.cartoni; perProd[p.codice].ric+=r.cartoni*r.prezzo; perProd[p.codice].cos+=r.cartoni*(p.costoCart||0);
+  }));
+  const righe=Object.entries(perProd).sort((a,b)=>b[1].ric-a[1].ric);
+  document.getElementById("venditeProdotto").innerHTML= righe.length?`<div class="tabella-wrap"><table>
+    <thead><tr><th>Codice</th><th>Prodotto</th><th>Formato</th><th class="n">Cartoni</th><th class="n">Ricavo</th><th class="n">Margine</th><th class="n">%</th></tr></thead>
+    <tbody>${righe.map(([c,d])=>`<tr><td>${c}</td><td>${esc(d.nome)}</td><td>${d.formato}</td>
+      <td class="n">${num(d.cart)}</td><td class="n">${eur(d.ric)}</td><td class="n">${eur(d.ric-d.cos)}</td>
+      <td class="n">${d.ric?num((d.ric-d.cos)/d.ric*100,1):0}</td></tr>`).join("")}</tbody></table></div>`
+    :`<div class="vuoto"><b>Ancora nessuna vendita quest'anno</b>Qui vedrai quali formati tirano davvero.</div>`;
+}
+
+/* ============================ IMPOSTAZIONI ============================ */
+function apriImpostazioni(){
+  const c=cfgSalvata()||{};
+  const regole=`rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}`;
+  finestra("Impostazioni",`
+    <div class="avviso ${online?"ok":""}">${online
+      ? (utente? `Collegato come <b>${esc(utente.email||"")}</b>. Tu e Giorgio vedete gli stessi dati in tempo reale.` : "Progetto collegato: manca solo l'accesso.")
+      : "Al momento i dati restano su questo computer. Segui la procedura qui sotto per creare il database di Domus Food."}</div>
+    <div class="riquadro" style="margin:0 0 14px"><h3>Creare il database di Domus Food (progetto separato da Steelco)</h3>
+      <div style="font-size:13px;line-height:1.75">
+        <b>1. Nuovo progetto.</b> Vai su console.firebase.google.com, "Aggiungi progetto", chiamalo <code>domus-food-gestionale</code>. Quando chiede Google Analytics, disattivalo: non serve. È un progetto completamente distinto da magazzino-steelcoltd, dati e accessi separati.<br>
+        <b>2. App web.</b> Nella schermata iniziale del progetto premi l'icona <code>&lt;/&gt;</code> (Web), chiamala "Gestionale", registra l'app. Ti mostra un blocco <code>firebaseConfig</code> con apiKey, projectId e il resto: copialo tutto e incollalo nel riquadro qui sotto.<br>
+        <b>3. Database.</b> Menu Build → Firestore Database → "Crea database" → posizione <code>eur3</code> (Europa) → avvia in <b>modalità produzione</b>.<br>
+        <b>4. Regole.</b> Scheda "Regole" del Firestore, cancella quello che c'è, incolla il testo qui sotto e premi Pubblica. Così i dati li legge e li scrive solo chi ha un accesso.<br>
+        <b>5. Utenti.</b> Menu Build → Authentication → "Inizia" → metodo <b>Email/Password</b> → Abilita. Poi scheda Users → "Aggiungi utente": crea il tuo indirizzo con una password, e ripeti per quello di Giorgio. Sono le credenziali con cui entrate nel gestionale.<br>
+        <b>6. Online.</b> Metti questo file in una repository GitHub nuova e solo di Domus Food, attiva Pages in Settings → Pages, e manda il link a Giorgio. Lui apre, entra con la sua email e siete sincronizzati.
+      </div>
+      <div class="campo" style="margin-top:10px"><label>Regole da incollare al punto 4</label>
+        <textarea rows="8" readonly onclick="this.select()">${esc(regole)}</textarea></div>
+    </div>
+    <div class="campo"><label>Configurazione Firebase (blocco firebaseConfig)</label>
+      <textarea id="cfg" rows="8" placeholder='{"apiKey":"…","authDomain":"…","projectId":"…","storageBucket":"…","messagingSenderId":"…","appId":"…"}'>${c.apiKey?esc(JSON.stringify(c,null,1)):""}</textarea>
+      <div class="aiuto">I documenti allegati (DDT, fatture) restano dentro questo database, non serve attivare Storage né pagare nulla: il piano gratuito basta.</div></div>
+    <div class="brt">In archivio: ${S.prodotti.length} prodotti · ${S.etichette.length} etichette · ${S.commesse.length} commesse · ${S.vendite.length} ordini · ${S.movimenti.length} movimenti · ${S.allegati.length} documenti</div>
+    <div class="barra" style="margin-top:12px">
+      <button class="bt leggero" onclick="esportaTutto()">Salva copia di sicurezza</button>
+      <button class="bt leggero" onclick="document.getElementById('imp').click()">Ripristina da copia</button>
+      <input type="file" id="imp" accept=".json" style="display:none" onchange="importaTutto(this)">
+    </div>
+  `,`<button class="bt leggero" onclick="chiudi()">Chiudi</button><button class="bt pri" onclick="salvaCfg()">Salva e collega</button>`);
+  document.getElementById("velo").style.zIndex="70";
+}
+function salvaCfg(){
+  try{
+    const o=JSON.parse(val("cfg").replace(/^\s*const\s+firebaseConfig\s*=\s*/,"").replace(/;\s*$/,""));
+    if(!o.apiKey||!o.projectId) throw 0;
+    localStorage.setItem("df_firebase",JSON.stringify(o));
+    alert("Configurazione salvata. Ricarico la pagina.");
+    location.reload();
+  }catch(e){ alert("La configurazione non è leggibile. Incolla il blocco completo tra parentesi graffe."); }
+}
+function esportaTutto(){
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(S,null,1)],{type:"application/json"}));
+  a.download="domus_food_backup_"+oggi()+".json"; a.click();
+}
+function importaTutto(inp){
+  const f=inp.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=async()=>{
+    try{
+      const d=JSON.parse(r.result);
+      if(!confirm("Aggiungo i dati della copia a quelli presenti. Procedo?")) return;
+      for(const k of Object.keys(COLL)) for(const o of (d[k]||[])) await salva(k,o);
+      alert("Copia ripristinata."); chiudi();
+    }catch(e){ alert("File non valido."); }
+  };
+  r.readAsText(f);
+}
+
+/* ============================ AVVIO ============================ */
+function disegnaTutto(){
+  try{
+    if(vistaAttiva==="cruscotto") disegnaCruscotto();
+    if(vistaAttiva==="prodotti") disegnaProdotti();
+    if(vistaAttiva==="etichette") disegnaEtichette();
+    if(vistaAttiva==="commesse") disegnaCommesse();
+    if(vistaAttiva==="vendite") disegnaVendite();
+    if(vistaAttiva==="acquisti") disegnaAcquisti();
+    if(vistaAttiva==="magazzino") disegnaMagazzino();
+    if(vistaAttiva==="cassa") disegnaCassa();
+    if(vistaAttiva==="listino") disegnaListino();
+    if(vistaAttiva==="anagrafiche") disegnaAnagrafiche();
+  }catch(e){ console.error(e); }
+}
+vaiA("cruscotto");
+avvia();
+</script>
+</body>
+</html>
